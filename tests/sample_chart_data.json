@@ -1,0 +1,8 @@
+[
+  {"category": "Control", "value": 15.2, "group": "Exp 1"},
+  {"category": "Treated A", "value": 24.5, "group": "Exp 1"},
+  {"category": "Treated B", "value": 31.0, "group": "Exp 1"},
+  {"category": "Control", "value": 14.8, "group": "Exp 2"},
+  {"category": "Treated A", "value": 26.2, "group": "Exp 2"},
+  {"category": "Treated B", "value": 35.1, "group": "Exp 2"}
+]

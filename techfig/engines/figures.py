@@ -49,8 +49,9 @@ def create_chart(
     # 2. Apply styling
     base_style = get_style(style_name)
     
-    # Extract matplotlib rcParams (filtering out the drawsvg-specific "colors" dict)
-    rc_params = {k: v for k, v in base_style.items() if not isinstance(v, dict)}
+    # Extract matplotlib rcParams (filtering out drawsvg-specific keys like "colors")
+    ignored_keys = {"colors", "font_family", "font_size", "stroke_width"}
+    rc_params = {k: v for k, v in base_style.items() if k not in ignored_keys and not isinstance(v, dict)}
     if style_overrides:
         rc_params.update(style_overrides)
         

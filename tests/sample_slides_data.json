@@ -1,0 +1,14 @@
+[
+    {
+        "title": "CLI Test Presentation",
+        "content": "This is a test of the slides command\nSecond line"
+    },
+    {
+        "title": "Experimental Results",
+        "image": "tests/output_chart.png"
+    },
+    {
+        "title": "System Architecture",
+        "image": "tests/output_diagram.svg"
+    }
+]

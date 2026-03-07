@@ -29,7 +29,7 @@ dependencies = [
     "pandas>=2.0",
     "openpyxl>=3.1",
     "pyyaml>=6.0",
-    "cairosvg>=2.7",
+    "svg2png>=1.2",
 ]
 
 [project.optional-dependencies]
@@ -44,6 +44,7 @@ all = ["techfig[mcp,dev]"]
 
 [project.scripts]
 techfig = "techfig.cli:main"
+techfig-mcp = "techfig.mcp_server:main"
 
 [project.urls]
 Homepage = "http://192.168.1.131:3000/"
@@ -51,7 +52,6 @@ Repository = "http://192.168.1.131:3000/"
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

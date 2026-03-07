@@ -1,0 +1,40 @@
+{
+    "nodes": [
+        {
+            "id": "A",
+            "text": "Input Data",
+            "x": 100,
+            "y": 100,
+            "shape": "box",
+            "color": "primary"
+        },
+        {
+            "id": "B",
+            "text": "Process",
+            "x": 300,
+            "y": 100,
+            "shape": "circle",
+            "color": "secondary"
+        },
+        {
+            "id": "C",
+            "text": "Result",
+            "x": 500,
+            "y": 100,
+            "shape": "box",
+            "color": "accent"
+        }
+    ],
+    "edges": [
+        {
+            "from": "A",
+            "to": "B",
+            "label": "raw"
+        },
+        {
+            "from": "B",
+            "to": "C",
+            "label": "clean"
+        }
+    ]
+}
