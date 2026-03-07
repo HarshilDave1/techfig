@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "techfig"
+version = "0.1.0"
+description = "AI-assisted toolkit for scientists to create publication-quality figures, editable SVG diagrams, and PowerPoint presentations."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Harshil" },
+]
+keywords = ["scientific", "figures", "diagrams", "svg", "powerpoint", "visualization", "mcp"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
+
+dependencies = [
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+    "python-pptx>=0.6.23",
+    "drawsvg>=2.3",
+    "pandas>=2.0",
+    "openpyxl>=3.1",
+    "pyyaml>=6.0",
+    "cairosvg>=2.7",
+]
+
+[project.optional-dependencies]
+mcp = ["mcp>=1.0"]
+animation = ["manim>=0.18"]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+]
+all = ["techfig[mcp,dev]"]
+
+[project.scripts]
+techfig = "techfig.cli:main"
+
+[project.urls]
+Homepage = "http://192.168.1.131:3000/"
+Repository = "http://192.168.1.131:3000/"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
