@@ -1,0 +1,35 @@
+# Example Custom Style for TechFig
+#
+# Copy this file, edit it, and pass the path to any TechFig command:
+#   techfig chart --data data.csv --type bar --style my_style.yaml -o fig.svg
+#
+# Any keys you omit will fall back to the "nature" base style.
+
+# Semantic colors used by both the diagram engine and the figure engine
+colors:
+  primary: "#264653"       # Dark teal
+  secondary: "#2A9D8F"    # Teal
+  accent: "#E9C46A"       # Sandy gold
+  warning: "#F4A261"      # Orange
+  muted: "#E76F51"        # Burnt sienna
+  background: "#FFFFFF"
+  text: "#000000"
+  stroke: "#333333"
+
+# Diagram-specific settings (SVG builder)
+font_family: "Helvetica Neue, Helvetica, sans-serif"
+font_size: 16
+stroke_width: 2.0
+
+# Matplotlib rcParams (figure engine)
+axes.labelsize: 16
+axes.titlesize: 18
+xtick.labelsize: 14
+ytick.labelsize: 14
+legend.fontsize: 14
+font.family: sans-serif
+lines.linewidth: 2.0
+axes.linewidth: 1.2
+grid.linewidth: 0.8
+figure.dpi: 300
+savefig.bbox: tight
