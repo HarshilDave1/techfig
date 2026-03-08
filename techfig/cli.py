@@ -8,6 +8,7 @@ from techfig.engines.diagrams import create_flowchart
 from techfig.engines.slides import create_presentation
 from techfig.engines.tikz_export import chart_to_tikz, diagram_to_tikz
 from techfig.engines.batch import batch_generate
+from techfig.engines.vectorize import vectorize_image, vectorize_with_preset, VECTORIZE_PRESETS
 from techfig.utils.export import convert_format
 from techfig.styles.presets import get_available_styles
 
@@ -63,6 +64,23 @@ def main():
     batch_p = subparsers.add_parser("batch", help="Generate all items from a manifest")
     batch_p.add_argument("--input", required=True, help="YAML or JSON manifest file")
     batch_p.add_argument("-o", "--output-dir", help="Override output directory")
+
+    # ---- vectorize -------------------------------------------------------
+    vec_p = subparsers.add_parser("vectorize", help="Convert a raster image to editable SVG")
+    vec_p.add_argument("input", help="Source image (PNG, JPG, BMP, etc.)")
+    vec_p.add_argument("-o", "--output", required=True, help="Output SVG file")
+    vec_p.add_argument(
+        "--preset", choices=list(VECTORIZE_PRESETS),
+        help="Vectorization preset (detailed, simplified, sketch, logo)",
+    )
+    vec_p.add_argument(
+        "--color-mode", choices=["color", "binary"], default="color",
+        help="Color mode: 'color' for full color, 'binary' for B&W (default: color)",
+    )
+    vec_p.add_argument(
+        "--color-precision", type=int, default=6,
+        help="Color quantization precision 1-8 (fewer = simpler SVG, default: 6)",
+    )
 
     # ---- styles ----------------------------------------------------------
     subparsers.add_parser("styles", help="List available style presets")
@@ -133,6 +151,18 @@ def main():
         print(f"Generated {len(results)} files:")
         for r in results:
             print(f"  {r}")
+
+    elif args.command == "vectorize":
+        print(f"Vectorizing {args.input} → {args.output}...")
+        if args.preset:
+            out = vectorize_with_preset(args.input, args.output, preset=args.preset)
+        else:
+            out = vectorize_image(
+                args.input, args.output,
+                color_mode=args.color_mode,
+                color_precision=args.color_precision,
+            )
+        print(f"SVG saved to {out}")
 
     elif args.command == "styles":
         styles = get_available_styles()

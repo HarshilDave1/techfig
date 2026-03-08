@@ -1,0 +1,31 @@
+# Batch generation manifest example
+# Run with: techfig batch --input examples/batch_manifest.yaml
+
+output_dir: ./output
+style: nature
+
+items:
+  - type: chart
+    data: examples/sample_data.csv
+    chart_type: bar
+    x_col: category
+    y_col: value
+    hue_col: group
+    title: "Experimental Results"
+    output: batch_bar_chart.svg
+
+  - type: chart
+    data: examples/sample_data.csv
+    chart_type: line
+    x_col: category
+    y_col: value
+    title: "Trend Line"
+    output: batch_line_chart.svg
+
+  - type: tikz_chart
+    data: examples/sample_data.csv
+    chart_type: bar
+    x_col: category
+    y_col: value
+    title: "LaTeX Figure"
+    output: batch_tikz.tex

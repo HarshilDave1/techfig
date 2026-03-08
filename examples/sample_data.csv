@@ -1,0 +1,7 @@
+category,value,group
+Experiment A,42,Control
+Experiment B,38,Control
+Experiment C,55,Treatment
+Experiment D,61,Treatment
+Experiment E,47,Control
+Experiment F,59,Treatment

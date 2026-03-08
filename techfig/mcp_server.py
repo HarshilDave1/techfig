@@ -17,6 +17,7 @@ from techfig.engines.diagrams import create_flowchart, SUPPORTED_SHAPES
 from techfig.engines.slides import create_presentation
 from techfig.engines.tikz_export import chart_to_tikz, diagram_to_tikz
 from techfig.engines.batch import batch_generate
+from techfig.engines.vectorize import vectorize_image, vectorize_with_preset, VECTORIZE_PRESETS
 from techfig.utils.export import convert_format
 from techfig.styles.presets import get_available_styles
 
@@ -184,6 +185,36 @@ async def list_tools() -> list[Tool]:
                 "required": ["spec_path"],
             },
         ),
+        Tool(
+            name="vectorize_image",
+            description=(
+                "Convert a raster image (PNG, JPG, BMP) to an editable SVG. "
+                "Great for turning sketches, photos, or screenshots into vector art."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "input_path": {"type": "string", "description": "Path to input image"},
+                    "output_path": {"type": "string", "description": "Path for output SVG"},
+                    "preset": {
+                        "type": "string",
+                        "enum": list(VECTORIZE_PRESETS),
+                        "description": "Vectorization preset (detailed, simplified, sketch, logo)",
+                    },
+                    "color_mode": {
+                        "type": "string",
+                        "enum": ["color", "binary"],
+                        "default": "color",
+                    },
+                    "color_precision": {
+                        "type": "integer",
+                        "default": 6,
+                        "description": "Color precision 1-8 (fewer = simpler SVG)",
+                    },
+                },
+                "required": ["input_path", "output_path"],
+            },
+        ),
     ]
 
 
@@ -260,6 +291,20 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 dpi=arguments.get("dpi", 300),
             )
             return [TextContent(type="text", text=f"Converted file saved to {out}")]
+
+        elif name == "vectorize_image":
+            preset = arguments.get("preset")
+            if preset:
+                out = vectorize_with_preset(
+                    arguments["input_path"], arguments["output_path"], preset=preset,
+                )
+            else:
+                out = vectorize_image(
+                    arguments["input_path"], arguments["output_path"],
+                    color_mode=arguments.get("color_mode", "color"),
+                    color_precision=arguments.get("color_precision", 6),
+                )
+            return [TextContent(type="text", text=f"Vectorized image saved to {out}")]
 
         elif name == "batch_generate":
             results = batch_generate(
