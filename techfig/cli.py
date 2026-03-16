@@ -85,6 +85,40 @@ def main():
     # ---- styles ----------------------------------------------------------
     subparsers.add_parser("styles", help="List available style presets")
 
+    # ---- components ------------------------------------------------------
+    comp_p = subparsers.add_parser("components", help="Manage component library")
+    comp_sub = comp_p.add_subparsers(dest="comp_command", help="Component command")
+    
+    # components list
+    comp_list = comp_sub.add_parser("list", help="List available components")
+    comp_list.add_argument("--category", "-c", help="Filter by category (circuit, physics, optics, etc.)")
+    comp_list.add_argument("--source", "-s", help="Filter by source (standard, lab_folder)")
+    comp_list.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+    
+    # components search
+    comp_search = comp_sub.add_parser("search", help="Search components")
+    comp_search.add_argument("query", help="Search query")
+    comp_search.add_argument("--category", "-c", help="Filter by category")
+    comp_search.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+    
+    # components index
+    comp_index = comp_sub.add_parser("index", help="Index lab folder components")
+    comp_index.add_argument("--folder", "-f", help="Custom lab folder path")
+    
+    # components render
+    comp_render = comp_sub.add_parser("render", help="Render a component to SVG")
+    comp_render.add_argument("name", help="Component name (e.g., resistor, capacitor)")
+    comp_render.add_argument("-o", "--output", help="Output SVG file (prints to stdout if not set)")
+    comp_render.add_argument("--label", "-l", help="Component label")
+    
+    # components stats
+    comp_stats = comp_sub.add_parser("stats", help="Show component library statistics")
+    comp_stats.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+    
+    # components show
+    comp_show = comp_sub.add_parser("show", help="Show component details")
+    comp_show.add_argument("name", help="Component name")
+
     # ---- dispatch --------------------------------------------------------
     args = parser.parse_args()
 
@@ -141,7 +175,7 @@ def main():
         print(f"TikZ file saved to {out}")
 
     elif args.command == "export":
-        print(f"Converting {args.input} → {args.output}...")
+        print(f"Converting {args.input} -> {args.output}...")
         out = convert_format(args.input, args.output, dpi=args.dpi)
         print(f"Exported to {out}")
 
@@ -153,7 +187,7 @@ def main():
             print(f"  {r}")
 
     elif args.command == "vectorize":
-        print(f"Vectorizing {args.input} → {args.output}...")
+        print(f"Vectorizing {args.input} -> {args.output}...")
         if args.preset:
             out = vectorize_with_preset(args.input, args.output, preset=args.preset)
         else:
@@ -170,8 +204,127 @@ def main():
         for s in styles:
             print(f"  - {s}")
 
+    elif args.command == "components":
+        _handle_components_command(args)
+
     else:
         parser.print_help()
+        sys.exit(1)
+
+
+def _handle_components_command(args):
+    """Handle component library commands."""
+    from techfig.components import (
+        get_registry,
+        load_standard_components,
+        get_lab_folder,
+        render_schemdraw_component,
+        ComponentCategory,
+    )
+    
+    # Initialize registry and load components
+    registry = get_registry()
+    load_standard_components(registry)
+    
+    if args.comp_command == "list":
+        # Filter by category if provided
+        category = None
+        if args.category:
+            try:
+                category = ComponentCategory(args.category.lower())
+            except ValueError:
+                print(f"Unknown category: {args.category}", file=sys.stderr)
+                print(f"Valid categories: {', '.join(c.value for c in ComponentCategory)}", file=sys.stderr)
+                sys.exit(1)
+        
+        components = registry.list_all(category=category)
+        
+        # Filter by source if provided
+        if args.source:
+            components = [c for c in components if c.source == args.source]
+        
+        if args.json:
+            print(json.dumps([c.to_dict() for c in components], indent=2))
+        else:
+            print(f"Found {len(components)} components:")
+            for comp in components:
+                print(f"  {comp.name:<20} [{comp.category.value:<10}] ({comp.source})")
+    
+    elif args.comp_command == "search":
+        category = None
+        if args.category:
+            try:
+                category = ComponentCategory(args.category.lower())
+            except ValueError:
+                pass
+        
+        results = registry.search(args.query, category=category)
+        
+        if args.json:
+            print(json.dumps([c.to_dict() for c in results], indent=2))
+        else:
+            if results:
+                print(f"Search results for '{args.query}':")
+                for comp in results:
+                    print(f"  {comp.name:<20} [{comp.category.value:<10}] - {comp.description}")
+            else:
+                print(f"No components found matching '{args.query}'")
+    
+    elif args.comp_command == "index":
+        lab_folder = get_lab_folder(args.folder)
+        indexed = lab_folder.index_components(registry)
+        print(f"Indexed {indexed} components from {lab_folder.folder}")
+        print(f"Total components in registry: {len(registry.list_all())}")
+    
+    elif args.comp_command == "render":
+        try:
+            kwargs = {}
+            if args.label:
+                kwargs["label"] = args.label
+            
+            svg = render_schemdraw_component(args.name, output_path=args.output, **kwargs)
+            
+            if args.output:
+                print(f"Component '{args.name}' saved to {args.output}")
+            else:
+                print(svg)
+        except Exception as e:
+            print(f"Error rendering component '{args.name}': {e}", file=sys.stderr)
+            sys.exit(1)
+    
+    elif args.comp_command == "stats":
+        stats = registry.get_stats()
+        if args.json:
+            print(json.dumps(stats, indent=2))
+        else:
+            print("Component Library Statistics:")
+            print(f"  Total components: {stats['total_components']}")
+            print(f"  Lab folder: {stats['lab_folder']}")
+            print("  By category:")
+            for cat, count in stats['categories'].items():
+                print(f"    {cat}: {count}")
+            print("  By source:")
+            for src, count in stats['sources'].items():
+                print(f"    {src}: {count}")
+    
+    elif args.comp_command == "show":
+        comp = registry.get(args.name)
+        if comp:
+            print(f"Component: {comp.name}")
+            print(f"  Category: {comp.category.value}")
+            print(f"  Source: {comp.source}")
+            print(f"  Tags: {', '.join(comp.tags) if comp.tags else 'none'}")
+            print(f"  Description: {comp.description}")
+            if comp.file_path:
+                print(f"  File: {comp.file_path}")
+            if comp.schemdraw_element:
+                print(f"  Schemdraw: {comp.schemdraw_element}")
+        else:
+            print(f"Component '{args.name}' not found", file=sys.stderr)
+            sys.exit(1)
+    
+    else:
+        print("Unknown component command. Use: list, search, index, render, stats, show")
         sys.exit(1)
 
 

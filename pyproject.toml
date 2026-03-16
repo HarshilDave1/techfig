@@ -31,6 +31,7 @@ dependencies = [
     "pyyaml>=6.0",
     "svg2png>=1.2",
     "vtracer>=0.6",
+    "schemdraw>=0.22",
 ]
 
 [project.optional-dependencies]
