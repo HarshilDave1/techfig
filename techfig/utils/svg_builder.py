@@ -199,6 +199,45 @@ class SVGBuilder:
         if element_id:
             self._elements[element_id] = (x, y, w, h)
 
+    def add_component(
+        self,
+        x: float, y: float, w: float, h: float,
+        raw_svg: str, text: str = "", element_id: str = "",
+        **kwargs,
+    ) -> None:
+        """Add a raw SVG component (e.g. from the component library).
+
+        The component is scaled and translated to fit within w x h,
+        centered at (x, y). Text label is drawn below it.
+        """
+        group = draw.Group(id=element_id) if element_id else draw.Group()
+
+        # To properly center and scale arbitrary SVG into x, y, w, h:
+        # We wrap it in an <svg> tag with x, y, width, height that creates a viewport.
+        # Alternatively, using a transform and placing the raw content.
+        # We can use drawsvg's Raw mechanism.
+        
+        # A simple approach that relies on the SVG having appropriate viewBox
+        # or scaling is to embed it directly. We wrap the string to position it.
+        cx = x - w / 2
+        cy = y - h / 2
+        wrapper = f'<svg x="{cx}" y="{cy}" width="{w}" height="{h}">{raw_svg}</svg>'
+        raw_elem = draw.Raw(wrapper)
+        group.append(raw_elem)
+
+        if text:
+            # Place text below the component
+            group.append(draw.Text(
+                text, self._font_size(),
+                x=x, y=y + h / 2 + self._font_size(), center=True,
+                font_family=self._font_family(),
+                fill=self._text_color(),
+            ))
+
+        self.drawing.append(group)
+        if element_id:
+            self._elements[element_id] = (x, y, w, h)
+
     # --- connections ----------------------------------------------------
 
     def add_arrow(
