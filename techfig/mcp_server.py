@@ -92,7 +92,10 @@ async def list_tools() -> list[Tool]:
                                 "text": {"type": "string"},
                                 "x": {"type": "number"},
                                 "y": {"type": "number"},
-                                "shape": {"type": "string", "enum": shapes},
+                                "shape": {
+                                    "type": "string",
+                                    "description": "Basic shapes (box, circle, diamond) or component names (e.g., resistor)"
+                                },
                                 "color": {"type": "string"},
                                 "w": {"type": "number"},
                                 "h": {"type": "number"},
@@ -256,6 +259,11 @@ async def list_tools() -> list[Tool]:
             inputSchema={"type": "object", "properties": {}},
         ),
         Tool(
+            name="list_components",
+            description="List available diagram components from the registry.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
             name="export_figure",
             description="Convert a figure between formats (e.g. SVG → PNG, SVG → PDF).",
             inputSchema={
@@ -379,6 +387,18 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         elif name == "list_styles":
             styles = get_available_styles()
             return [TextContent(type="text", text=f"Available styles: {', '.join(styles)}")]
+
+        elif name == "list_components":
+            from techfig.components import get_registry, load_standard_components
+            registry = get_registry()
+            if not registry.list_all():
+                load_standard_components(registry)
+            
+            comps = registry.list_all()
+            result = ["Available components:"]
+            for c in comps:
+                result.append(f"- {c.name} [{c.category.value}] ({c.source})")
+            return [TextContent(type="text", text="\n".join(result))]
 
         elif name == "export_figure":
             out = convert_format(

@@ -11,6 +11,8 @@ from typing import Dict, List, Any, Optional
 from pathlib import Path
 
 from techfig.utils.svg_builder import SVGBuilder
+from techfig.components import get_registry
+from techfig.components.standard import render_schemdraw_component
 
 # Shapes the engine can render as nodes
 SUPPORTED_SHAPES = ("box", "circle", "diamond", "ellipse", "triangle")
@@ -114,10 +116,30 @@ def create_diagram(
             )
 
         else:
-            raise ValueError(
-                f"Unknown element type: '{el_type}'. "
-                f"Supported: {', '.join(SUPPORTED_SHAPES)}, text, line"
-            )
+            # Try component registry for custom/lab-folder components
+            registry = get_registry()
+            meta = registry.get(el_type)
+            if meta:
+                x = float(el.get("x", 0))
+                y = float(el.get("y", 0))
+                w = float(el.get("w", 100))
+                h = float(el.get("h", 100))
+                raw_svg = ""
+                if meta.source == "standard":
+                    raw_svg = render_schemdraw_component(el_type)
+                elif meta.file_path:
+                    try:
+                        with open(meta.file_path, "r", encoding="utf-8") as f:
+                            raw_svg = f.read()
+                    except Exception:
+                        pass
+                builder.add_component(x, y, w, h, raw_svg, text=text, element_id=el_id)
+            else:
+                raise ValueError(
+                    f"Unknown element type: '{el_type}'. "
+                    f"Supported: {', '.join(SUPPORTED_SHAPES)}, text, line, or any registered component."
+                )
+
 
     # 2. Draw connections
     for conn in connections:

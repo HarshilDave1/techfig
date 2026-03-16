@@ -81,3 +81,27 @@ def test_custom_dimensions(tmp_path):
     nodes = [{"id": "a", "text": "Wide", "x": 0, "y": 0}]
     result = create_flowchart(nodes, [], out, width=1200, height=400)
     assert os.path.exists(result)
+
+
+def test_component_rendering(tmp_path):
+    """Test that registered components can be rendered as nodes."""
+    from techfig.components import get_registry
+    from techfig.components.standard import load_standard_components
+    
+    load_standard_components(get_registry())
+    
+    out = str(tmp_path / "comp.svg")
+    nodes = [
+        {"id": "v1", "text": "V", "x": 0, "y": 0, "shape": "source_v"},
+        {"id": "r1", "text": "R", "x": 100, "y": 0, "shape": "resistor"},
+    ]
+    edges = [{"from": "v1", "to": "r1"}]
+    result = create_flowchart(nodes, edges, out)
+    
+    assert os.path.exists(result)
+    with open(result) as f:
+        content = f.read()
+        assert "V" in content
+        assert "R" in content
+        # There should be embedded SVGs internally, so > 1.
+        assert content.count("<svg") > 1
