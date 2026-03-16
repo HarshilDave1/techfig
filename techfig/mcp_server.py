@@ -70,6 +70,7 @@ async def list_tools() -> list[Tool]:
                     "xlabel": {"type": "string", "description": "Custom X-axis label"},
                     "ylabel": {"type": "string", "description": "Custom Y-axis label"},
                     "style": {"type": "string", "enum": styles, "default": "nature"},
+                    "interactive": {"type": "boolean", "default": False, "description": "Set to true to generate an interactive Plotly HTML file instead of an SVG/PNG."},
                 },
                 "required": ["data_json", "chart_type", "output_path"],
             },
@@ -232,6 +233,33 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="create_animation",
+            description=(
+                "Generate an MP4 animation from a declarative diagram spec using Manim. "
+                "Translates shapes and connections into an animated sequence."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "spec_path": {
+                        "type": "string",
+                        "description": "Absolute path to the diagram specification JSON.",
+                    },
+                    "output_path": {
+                        "type": "string",
+                        "description": "Absolute path for the output `.mp4` file.",
+                    },
+                    "quality": {
+                        "type": "string",
+                        "enum": ["l", "m", "h", "p", "k"],
+                        "default": "l",
+                        "description": "Video quality (l=480p, m=720p, h=1080p, p=1440p, k=2160p).",
+                    },
+                },
+                "required": ["spec_path", "output_path"],
+            },
+        ),
+        Tool(
             name="export_tikz",
             description="Export a chart or diagram specification to a LaTeX/TikZ .tex file for paper integration.",
             inputSchema={
@@ -301,18 +329,34 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     try:
         if name == "create_chart":
             data = json.loads(arguments["data_json"])
-            out = create_chart(
-                data=data,
-                chart_type=arguments["chart_type"],
-                output_path=arguments["output_path"],
-                title=arguments.get("title", ""),
-                x_col=arguments.get("x_col"),
-                y_col=arguments.get("y_col"),
-                hue_col=arguments.get("hue_col"),
-                xlabel=arguments.get("xlabel"),
-                ylabel=arguments.get("ylabel"),
-                style_name=arguments.get("style", "nature"),
-            )
+            
+            if arguments.get("interactive", False):
+                from techfig.engines.interactive import create_interactive_chart
+                out = create_interactive_chart(
+                    data=data,
+                    chart_type=arguments["chart_type"],
+                    output_path=arguments["output_path"],
+                    title=arguments.get("title", ""),
+                    x_col=arguments.get("x_col"),
+                    y_col=arguments.get("y_col"),
+                    hue_col=arguments.get("hue_col"),
+                    xlabel=arguments.get("xlabel"),
+                    ylabel=arguments.get("ylabel"),
+                    style_name=arguments.get("style", "nature"),
+                )
+            else:
+                out = create_chart(
+                    data=data,
+                    chart_type=arguments["chart_type"],
+                    output_path=arguments["output_path"],
+                    title=arguments.get("title", ""),
+                    x_col=arguments.get("x_col"),
+                    y_col=arguments.get("y_col"),
+                    hue_col=arguments.get("hue_col"),
+                    xlabel=arguments.get("xlabel"),
+                    ylabel=arguments.get("ylabel"),
+                    style_name=arguments.get("style", "nature"),
+                )
             return [TextContent(type="text", text=f"Chart saved to {out}")]
 
         elif name == "create_diagram":
@@ -361,6 +405,19 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 template_path=arguments.get("template_path"),
             )
             return [TextContent(type="text", text=f"Presentation saved to {out}")]
+
+        elif name == "create_animation":
+            from techfig.engines.animations import create_animation
+            try:
+                out = create_animation(
+                    spec_path=arguments["spec_path"],
+                    output_path=arguments["output_path"],
+                    quality=arguments.get("quality", "l"),
+                    preview=False,
+                )
+                return [TextContent(type="text", text=f"Animation saved to {out}")]
+            except ImportError as e:
+                return [TextContent(type="text", text=f"Error: {e}")]
 
         elif name == "export_tikz":
             mode = arguments["mode"]

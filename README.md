@@ -29,13 +29,23 @@ Image → LLM Vision (with sketch prompt) → JSON spec → Diagram Engine → e
 1. **Step 1:** Send the image + `get_sketch_prompt` output to a vision LLM (Claude, GPT-4V)
 2. **Step 2:** Pass the JSON output to `reconstruct_diagram` to get a clean SVG
 
+## Installation
+
+```bash
+pip install techfig              # base (charts, diagrams, slides, TikZ)
+pip install "techfig[mcp]"       # + MCP server for Claude/Cursor/Antigravity
+pip install "techfig[animation]" # + Manim animation support
+```
+
+**From source (development):**
+```bash
+git clone https://github.com/harshil/techfig
+pip install -e ".[all]"
+```
+
 ## Quick Start
 
 ```bash
-# Install
-pip install -e ".[all]"
-
-# Chart from CSV
 techfig chart --data results.csv --type bar --style nature -o fig1.svg
 
 # Diagram from JSON

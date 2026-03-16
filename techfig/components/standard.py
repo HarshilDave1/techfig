@@ -86,6 +86,12 @@ def _get_schemdraw_element(element_path: str):
     if not SCHEMDRAW_AVAILABLE:
         return None
 
+    if element_path.startswith("generated."):
+        # We can't easily re-hydrate generated classes cross-session right now
+        # without saving the code. For now, generated components only live 
+        # in the current memory process.
+        return None
+
     parts = element_path.split(".")
     if len(parts) != 2:
         return None
@@ -134,6 +140,7 @@ def load_standard_components(registry: Optional[ComponentRegistry] = None) -> in
 def render_schemdraw_component(
     component_name: str,
     output_path: Optional[str] = None,
+    allow_fallback: bool = False,
     **kwargs
 ) -> Optional[str]:
     """Render a schemdraw component to SVG.
@@ -141,6 +148,7 @@ def render_schemdraw_component(
     Args:
         component_name: Name of the component (e.g., "resistor", "capacitor")
         output_path: Where to save the SVG. If None, returns SVG string.
+        allow_fallback: Whether to attempt generating missing components via LLM.
         **kwargs: Additional arguments for the element (label, value, etc.)
 
     Returns:
@@ -153,11 +161,32 @@ def render_schemdraw_component(
     meta = registry.get(component_name)
 
     if meta is None or meta.schemdraw_element is None:
-        raise ValueError(f"Unknown schemdraw component: {component_name}")
-
-    element_cls = _get_schemdraw_element(meta.schemdraw_element)
-    if element_cls is None:
-        raise ValueError(f"Cannot load schemdraw element: {meta.schemdraw_element}")
+        if allow_fallback:
+            import logging
+            from techfig.engines.fallback import generate_component
+            logger = logging.getLogger(__name__)
+            logger.info(f"Component '{component_name}' not found. Attempting agentic fallback...")
+            element_cls = generate_component(component_name)
+            if element_cls is None:
+                raise ValueError(f"Unknown schemdraw component and fallback generation failed: {component_name}")
+            
+            # Register it for future use in this run
+            desc = f"Dynamically generated {component_name} component"
+            meta = ComponentMeta(
+                name=component_name,
+                category=ComponentCategory.CUSTOM,
+                source="generated",
+                tags=["generated", component_name],
+                description=desc,
+                schemdraw_element=f"generated.{element_cls.__name__}",
+            )
+            registry.register(meta)
+        else:
+            raise ValueError(f"Unknown schemdraw component: {component_name}")
+    else:
+        element_cls = _get_schemdraw_element(meta.schemdraw_element)
+        if element_cls is None:
+            raise ValueError(f"Cannot load schemdraw element: {meta.schemdraw_element}")
 
     # Create element with arguments
     element = element_cls(**kwargs)

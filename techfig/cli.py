@@ -31,6 +31,7 @@ def main():
     chart_p.add_argument("--ylabel", help="Custom Y-axis label")
     chart_p.add_argument("--title", default="", help="Chart title")
     chart_p.add_argument("--style", default="nature", help="Style preset")
+    chart_p.add_argument("-i", "--interactive", action="store_true", help="Generate interactive HTML plot (Plotly) instead of static image")
 
     # ---- diagram ---------------------------------------------------------
     diag_p = subparsers.add_parser("diagram", help="Generate a structural diagram")
@@ -73,6 +74,16 @@ def main():
     recon_p.add_argument("input", help="JSON file with diagram spec")
     recon_p.add_argument("-o", "--output", required=True, help="Output SVG file")
 
+    # ---- animate ---------------------------------------------------------
+    anim_p = subparsers.add_parser(
+        "animate",
+        help="Generate MP4 animation from a diagram spec JSON",
+    )
+    anim_p.add_argument("input", help="JSON file with diagram spec")
+    anim_p.add_argument("-o", "--output", required=True, help="Output MP4 file")
+    anim_p.add_argument("--quality", choices=["l", "m", "h", "p", "k"], default="l", help="Video quality (l=480p, m=720p, h=1080p, p=1440p, k=2160p)")
+    anim_p.add_argument("--preview", action="store_true", help="Auto-play animation after rendering")
+
     # ---- prompt ----------------------------------------------------------
     subparsers.add_parser(
         "prompt",
@@ -107,6 +118,7 @@ def main():
     comp_render.add_argument("name", help="Component name (e.g., resistor, capacitor)")
     comp_render.add_argument("-o", "--output", help="Output SVG file (prints to stdout if not set)")
     comp_render.add_argument("--label", "-l", help="Component label")
+    comp_render.add_argument("-f", "--fallback", action="store_true", help="Allow LLM to generate missing components dynamically")
     
     # components stats
     comp_stats = comp_sub.add_parser("stats", help="Show component library statistics")
@@ -121,18 +133,33 @@ def main():
 
     if args.command == "chart":
         print(f"Generating {args.chart_type} chart from {args.data}...")
-        out = create_chart(
-            data=args.data,
-            chart_type=args.chart_type,
-            output_path=args.output,
-            title=args.title,
-            x_col=args.x_col,
-            y_col=args.y_col,
-            hue_col=args.hue,
-            xlabel=args.xlabel,
-            ylabel=args.ylabel,
-            style_name=args.style,
-        )
+        if args.interactive:
+            from techfig.engines.interactive import create_interactive_chart
+            out = create_interactive_chart(
+                data=args.data,
+                chart_type=args.chart_type,
+                output_path=args.output,
+                title=args.title,
+                x_col=args.x_col,
+                y_col=args.y_col,
+                hue_col=args.hue,
+                xlabel=args.xlabel,
+                ylabel=args.ylabel,
+                style_name=args.style,
+            )
+        else:
+            out = create_chart(
+                data=args.data,
+                chart_type=args.chart_type,
+                output_path=args.output,
+                title=args.title,
+                x_col=args.x_col,
+                y_col=args.y_col,
+                hue_col=args.hue,
+                xlabel=args.xlabel,
+                ylabel=args.ylabel,
+                style_name=args.style,
+            )
         print(f"Chart saved to {out}")
 
     elif args.command == "diagram":
@@ -201,6 +228,14 @@ def main():
             )
         print(f"SVG saved to {out}")
 
+    elif args.command == "animate":
+        from techfig.engines.animations import create_animation
+        print(f"Rendering Manim animation {args.input} -> {args.output}...")
+        try:
+            out = create_animation(args.input, args.output, quality=args.quality, preview=args.preview)
+            print(f"Animation saved to {out}")
+        except ImportError as e:
+            print(f"Error: {e}")
 
     elif args.command == "prompt":
         print(get_sketch_prompt())
@@ -289,7 +324,7 @@ def _handle_components_command(args):
             if args.label:
                 kwargs["label"] = args.label
             
-            svg = render_schemdraw_component(args.name, output_path=args.output, **kwargs)
+            svg = render_schemdraw_component(args.name, output_path=args.output, allow_fallback=args.fallback, **kwargs)
             
             if args.output:
                 print(f"Component '{args.name}' saved to {args.output}")
