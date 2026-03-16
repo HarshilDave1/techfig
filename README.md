@@ -10,7 +10,7 @@ TechFig is a **code-first visualization toolkit** designed for researchers and s
 - **matplotlib/seaborn figures** — export as SVG, PNG, or PDF with journal-ready styling
 - **PowerPoint decks** — real `.pptx` files with proper slide layouts and speaker notes
 - **LaTeX/TikZ** — `.tex` files for direct inclusion in papers
-- **Image → Vector** — convert any raster image (PNG/JPG) to an editable SVG
+- **Sketch → Diagram** — reconstruct a clean editable SVG from an image using LLM vision + geometric primitives
 
 ## Architecture
 
@@ -19,6 +19,15 @@ Engine Layer (pure Python, no AI)  →  Agent Layer (LLM tools)  →  Adapters (
 ```
 
 The core engines have zero AI dependency — they're just Python functions that take structured input and produce output files. The AI layer translates natural language into structured calls.
+
+### Sketch-to-Diagram Workflow
+
+```
+Image → LLM Vision (with sketch prompt) → JSON spec → Diagram Engine → editable SVG
+```
+
+1. **Step 1:** Send the image + `get_sketch_prompt` output to a vision LLM (Claude, GPT-4V)
+2. **Step 2:** Pass the JSON output to `reconstruct_diagram` to get a clean SVG
 
 ## Quick Start
 
@@ -32,11 +41,14 @@ techfig chart --data results.csv --type bar --style nature -o fig1.svg
 # Diagram from JSON
 techfig diagram --input nodes.json -o flow.svg
 
+# Reconstruct diagram from JSON spec (output from LLM vision)
+techfig reconstruct spec.json -o diagram.svg
+
+# Print the LLM system prompt for sketch interpretation
+techfig prompt
+
 # Slides from JSON
 techfig slides --input outline.json -o talk.pptx
-
-# Vectorize a raster image → editable SVG
-techfig vectorize photo.png -o vector.svg --preset sketch
 
 # LaTeX/TikZ export
 techfig tikz --mode chart --data results.csv --chart-type bar -o fig.tex
@@ -65,7 +77,7 @@ Add to your assistant's MCP config:
 }
 ```
 
-**Available tools:** `create_chart`, `create_diagram`, `create_slides`, `export_tikz`, `vectorize_image`, `export_figure`, `list_styles`, `batch_generate`
+**Available tools:** `create_chart`, `create_diagram`, `reconstruct_diagram`, `get_sketch_prompt`, `create_slides`, `export_tikz`, `export_figure`, `list_styles`, `batch_generate`
 
 ## Styles
 
@@ -75,7 +87,7 @@ Custom styles via YAML files — see `templates/styles/example_custom.yaml`.
 
 ## Examples
 
-See the `examples/` directory for working scripts and sample data.
+See the `examples/` directory for working scripts, sample data, and the `optical_diagram_spec.json` demo.
 
 ## Development
 

@@ -64,7 +64,7 @@ def test_orthogonal_routing(tmp_path):
 
 def test_unsupported_shape(tmp_path):
     nodes = [{"id": "x", "text": "X", "x": 0, "y": 0, "shape": "hexagon"}]
-    with pytest.raises(ValueError, match="Unknown shape"):
+    with pytest.raises(ValueError, match="Unknown element type"):
         create_flowchart(nodes, [], str(tmp_path / "fail.svg"))
 
 

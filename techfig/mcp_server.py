@@ -13,11 +13,19 @@ from mcp.server import Server
 from mcp.types import Tool, TextContent
 
 from techfig.engines.figures import create_chart, CHART_TYPES
-from techfig.engines.diagrams import create_flowchart, SUPPORTED_SHAPES
+from techfig.engines.diagrams import create_flowchart, create_diagram, SUPPORTED_SHAPES
 from techfig.engines.slides import create_presentation
 from techfig.engines.tikz_export import chart_to_tikz, diagram_to_tikz
 from techfig.engines.batch import batch_generate
-from techfig.engines.vectorize import vectorize_image, vectorize_with_preset, VECTORIZE_PRESETS
+from techfig.engines.sketch_interpreter import (
+    render_from_spec,
+    validate_spec,
+    get_sketch_prompt,
+    get_refine_prompt,
+    get_diagram_schema,
+    format_refinement_context,
+    DIAGRAM_SCHEMA,
+)
 from techfig.utils.export import convert_format
 from techfig.styles.presets import get_available_styles
 
@@ -68,7 +76,10 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="create_diagram",
-            description="Generate a structural flowchart or diagram and save as SVG/PNG.",
+            description=(
+                "Generate a structural diagram or flowchart using geometric primitives "
+                "(box, circle, ellipse, diamond, triangle, text, line) and save as SVG."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -106,6 +117,90 @@ async def list_tools() -> list[Tool]:
                     "output_path": {"type": "string"},
                 },
                 "required": ["nodes", "edges", "output_path"],
+            },
+        ),
+        Tool(
+            name="reconstruct_diagram",
+            description=(
+                "Render a clean, editable SVG from a diagram spec JSON. "
+                "This is Step 2 of the sketch-to-diagram workflow: "
+                "pass the JSON output from an LLM vision analysis to produce "
+                "a clean SVG made of geometric primitives."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "spec": {
+                        "type": "object",
+                        "description": (
+                            "Diagram specification with 'elements' (shapes, text, lines) "
+                            "and optional 'connections' (arrows/lines between elements). "
+                            "See get_sketch_prompt for the full schema."
+                        ),
+                    },
+                    "output_path": {
+                        "type": "string",
+                        "description": "Absolute path for the output SVG file.",
+                    },
+                },
+                "required": ["spec", "output_path"],
+            },
+        ),
+        Tool(
+            name="get_sketch_prompt",
+            description=(
+                "Get the system prompt for LLM-based sketch interpretation. "
+                "This is Step 1 of the sketch-to-diagram workflow: "
+                "use this prompt with a vision model (Claude, GPT-4V) to "
+                "analyze an image and produce a diagram spec JSON."
+            ),
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="get_refine_prompt",
+            description=(
+                "Get the refinement prompt for iterative diagram improvement. "
+                "Pass in the current diagram spec JSON to get a prompt that "
+                "instructs the LLM to compare the rendered SVG with the original "
+                "image and fix issues. Use with the original image + current SVG."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "current_spec": {
+                        "type": "object",
+                        "description": "The current diagram specification to refine.",
+                    },
+                },
+                "required": ["current_spec"],
+            },
+        ),
+        Tool(
+            name="refine_diagram",
+            description=(
+                "Render a refined diagram spec and return refinement context for "
+                "the next iteration. This is the agentic loop tool: pass in the "
+                "LLM's updated spec, it renders the SVG and returns the refinement "
+                "prompt for the next pass. Use iteratively until quality is satisfactory."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "spec": {
+                        "type": "object",
+                        "description": "Updated diagram specification from the LLM.",
+                    },
+                    "output_path": {
+                        "type": "string",
+                        "description": "Absolute path for the output SVG file.",
+                    },
+                    "known_issues": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional list of known visual issues to fix in next pass.",
+                    },
+                },
+                "required": ["spec", "output_path"],
             },
         ),
         Tool(
@@ -185,36 +280,6 @@ async def list_tools() -> list[Tool]:
                 "required": ["spec_path"],
             },
         ),
-        Tool(
-            name="vectorize_image",
-            description=(
-                "Convert a raster image (PNG, JPG, BMP) to an editable SVG. "
-                "Great for turning sketches, photos, or screenshots into vector art."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "input_path": {"type": "string", "description": "Path to input image"},
-                    "output_path": {"type": "string", "description": "Path for output SVG"},
-                    "preset": {
-                        "type": "string",
-                        "enum": list(VECTORIZE_PRESETS),
-                        "description": "Vectorization preset (detailed, simplified, sketch, logo)",
-                    },
-                    "color_mode": {
-                        "type": "string",
-                        "enum": ["color", "binary"],
-                        "default": "color",
-                    },
-                    "color_precision": {
-                        "type": "integer",
-                        "default": 6,
-                        "description": "Color precision 1-8 (fewer = simpler SVG)",
-                    },
-                },
-                "required": ["input_path", "output_path"],
-            },
-        ),
     ]
 
 
@@ -249,6 +314,37 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 output_path=arguments["output_path"],
             )
             return [TextContent(type="text", text=f"Diagram saved to {out}")]
+
+        elif name == "reconstruct_diagram":
+            spec = arguments["spec"]
+            if isinstance(spec, str):
+                spec = json.loads(spec)
+            out = render_from_spec(spec, arguments["output_path"])
+            return [TextContent(type="text", text=f"Diagram reconstructed and saved to {out}")]
+
+        elif name == "get_sketch_prompt":
+            prompt = get_sketch_prompt()
+            return [TextContent(type="text", text=prompt)]
+
+        elif name == "get_refine_prompt":
+            spec = arguments["current_spec"]
+            if isinstance(spec, str):
+                spec = json.loads(spec)
+            prompt = get_refine_prompt(spec)
+            return [TextContent(type="text", text=prompt)]
+
+        elif name == "refine_diagram":
+            spec = arguments["spec"]
+            if isinstance(spec, str):
+                spec = json.loads(spec)
+            out = render_from_spec(spec, arguments["output_path"])
+            context = format_refinement_context(
+                spec, issues=arguments.get("known_issues")
+            )
+            return [
+                TextContent(type="text", text=f"Refined diagram saved to {out}"),
+                TextContent(type="text", text=json.dumps(context, indent=2)),
+            ]
 
         elif name == "create_slides":
             out = create_presentation(
@@ -291,20 +387,6 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 dpi=arguments.get("dpi", 300),
             )
             return [TextContent(type="text", text=f"Converted file saved to {out}")]
-
-        elif name == "vectorize_image":
-            preset = arguments.get("preset")
-            if preset:
-                out = vectorize_with_preset(
-                    arguments["input_path"], arguments["output_path"], preset=preset,
-                )
-            else:
-                out = vectorize_image(
-                    arguments["input_path"], arguments["output_path"],
-                    color_mode=arguments.get("color_mode", "color"),
-                    color_precision=arguments.get("color_precision", 6),
-                )
-            return [TextContent(type="text", text=f"Vectorized image saved to {out}")]
 
         elif name == "batch_generate":
             results = batch_generate(

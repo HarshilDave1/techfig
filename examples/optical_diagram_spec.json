@@ -1,0 +1,224 @@
+{
+    "canvas": {
+        "width": 1200,
+        "height": 900
+    },
+    "style": {
+        "font_family": "Helvetica, Arial, sans-serif",
+        "font_size": 14,
+        "stroke_width": 2,
+        "colors": {
+            "primary": "#1A3E8C",
+            "secondary": "#DD4444",
+            "accent": "#E8A0A0",
+            "background": "#FFFFFF",
+            "text": "#222222",
+            "stroke": "#333333"
+        }
+    },
+    "elements": [
+        {
+            "type": "text",
+            "x": -500,
+            "y": -280,
+            "text": "(a)",
+            "font_size": 22,
+            "color": "#222222"
+        },
+        {
+            "type": "text",
+            "x": -500,
+            "y": 120,
+            "text": "(b)",
+            "font_size": 22,
+            "color": "#222222"
+        },
+        {
+            "type": "box",
+            "id": "target",
+            "x": -450,
+            "y": -200,
+            "w": 80,
+            "h": 80,
+            "text": "",
+            "color": "#2B2B9E",
+            "fill_opacity": 0.9
+        },
+        {
+            "type": "box",
+            "id": "aberration",
+            "x": -280,
+            "y": -200,
+            "w": 60,
+            "h": 80,
+            "text": "",
+            "color": "#44BBAA",
+            "fill_opacity": 0.8
+        },
+        {
+            "type": "text",
+            "x": -280,
+            "y": -120,
+            "text": "Aberration",
+            "font_size": 13,
+            "color": "#222222"
+        },
+        {
+            "type": "text",
+            "x": -450,
+            "y": -110,
+            "text": "Target",
+            "font_size": 13,
+            "color": "#222222"
+        },
+        {
+            "type": "ellipse",
+            "id": "lens",
+            "x": -140,
+            "y": -200,
+            "rx": 15,
+            "ry": 55,
+            "text": "",
+            "color": "#3366CC",
+            "fill_opacity": 0.5
+        },
+        {
+            "type": "text",
+            "x": -140,
+            "y": -280,
+            "text": "Lens",
+            "font_size": 13,
+            "color": "#222222"
+        },
+        {
+            "type": "box",
+            "id": "beamsplitter",
+            "x": 40,
+            "y": -200,
+            "w": 10,
+            "h": 110,
+            "text": "",
+            "color": "#5588DD",
+            "fill_opacity": 0.6
+        },
+        {
+            "type": "text",
+            "x": 40,
+            "y": -310,
+            "text": "Beamsplitter",
+            "font_size": 13,
+            "color": "#222222"
+        },
+        {
+            "type": "ellipse",
+            "id": "slm",
+            "x": 120,
+            "y": -200,
+            "rx": 10,
+            "ry": 45,
+            "text": "",
+            "color": "#88AADD",
+            "fill_opacity": 0.4,
+            "rotation": 15
+        },
+        {
+            "type": "text",
+            "x": 120,
+            "y": -120,
+            "text": "SLM on path 1",
+            "font_size": 13,
+            "color": "#222222"
+        },
+        {
+            "type": "box",
+            "id": "detector",
+            "x": 400,
+            "y": -200,
+            "w": 30,
+            "h": 80,
+            "text": "",
+            "color": "#1A3E8C",
+            "fill_opacity": 0.9
+        },
+        {
+            "type": "text",
+            "x": 400,
+            "y": -280,
+            "text": "Detector",
+            "font_size": 16,
+            "color": "#222222"
+        },
+        {
+            "type": "text",
+            "x": 250,
+            "y": -280,
+            "text": "path 2",
+            "font_size": 12,
+            "color": "#222222"
+        },
+        {
+            "type": "line",
+            "x1": 280,
+            "y1": -268,
+            "x2": 330,
+            "y2": -268,
+            "color": "#333333",
+            "stroke_dash": "3,3"
+        },
+        {
+            "type": "text",
+            "x": 250,
+            "y": -180,
+            "text": "path 1",
+            "font_size": 12,
+            "color": "#222222"
+        },
+        {
+            "type": "line",
+            "x1": 280,
+            "y1": -168,
+            "x2": 330,
+            "y2": -168,
+            "color": "#333333",
+            "stroke_dash": "3,3"
+        },
+        {
+            "type": "circle",
+            "id": "outer_circle",
+            "x": 0,
+            "y": 250,
+            "r": 130,
+            "text": "",
+            "color": "#E8A0A0",
+            "fill_opacity": 0.4
+        },
+        {
+            "type": "circle",
+            "id": "inner_circle",
+            "x": 0,
+            "y": 250,
+            "r": 95,
+            "text": "",
+            "color": "#E8A0A0",
+            "fill_opacity": 0.3,
+            "stroke_dash": "8,4"
+        },
+        {
+            "type": "text",
+            "x": 120,
+            "y": 200,
+            "text": "U₁",
+            "font_size": 16,
+            "color": "#222222"
+        },
+        {
+            "type": "text",
+            "x": 140,
+            "y": 280,
+            "text": "U₂",
+            "font_size": 16,
+            "color": "#222222"
+        }
+    ],
+    "connections": []
+}
