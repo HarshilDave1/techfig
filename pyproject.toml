@@ -32,6 +32,7 @@ dependencies = [
     "svg2png>=1.2",
     "vtracer>=0.6",
     "schemdraw>=0.22",
+    "scipy>=1.10",
 ]
 
 [project.optional-dependencies]

@@ -34,12 +34,20 @@ Image → LLM Vision (with sketch prompt) → JSON spec → Diagram Engine → e
 ```bash
 pip install techfig              # base (charts, diagrams, slides, TikZ)
 pip install "techfig[mcp]"       # + MCP server for Claude/Cursor/Antigravity
-pip install "techfig[animation]" # + Manim animation support
+pip install "techfig[animation]" # + Matplotlib physics animations
+
+# For Manim diagram animations, system dependencies (Cairo, FFMPEG) are required.
+# We recommend using Conda:
+conda create -n techfig_manim python=3.10 -y
+conda activate techfig_manim
+conda install -c conda-forge manim ffmpeg -y
+pip install techfig
 ```
 
 **From source (development):**
 ```bash
 git clone https://github.com/harshil/techfig
+cd techfig
 pip install -e ".[all]"
 ```
 
