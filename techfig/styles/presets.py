@@ -34,38 +34,118 @@ _COMMON_COLORS: Dict[str, str] = {
     "stroke": "#000000",
 }
 
+# ---- Base Publication Styles ----------------------------------------------
+
+# General guidelines for Nature, Science, Cell:
+# - Sans-serif fonts (Arial, Helvetica)
+# - Single column width: ~89 mm (3.5 inches)
+# - Double column width: ~183 mm (7.2 inches)
+# - Text size: 5-7 pt (Nature) or 7-9 pt (Science)
+# - Line weights: 0.25 - 1.0 pt
+
 NATURE_STYLE: Dict[str, Any] = {
     # Diagram-specific keys
     "font_family": "Arial, Helvetica, sans-serif",
-    "font_size": 18,
-    "stroke_width": 2.5,
+    "font_size": 7,
+    "stroke_width": 0.75,
     "colors": dict(_COMMON_COLORS),
     # Matplotlib rcParams
-    "axes.labelsize": 18,
-    "axes.titlesize": 20,
-    "xtick.labelsize": 16,
-    "ytick.labelsize": 16,
-    "legend.fontsize": 16,
-    "font.family": "sans-serif",
-    "font.sans-serif": ["Arial", "Helvetica", "Nimbus Sans L", "Liberation Sans", "sans-serif"],
-    "lines.linewidth": 2.5,
-    "axes.linewidth": 1.5,
-    "grid.linewidth": 1.0,
-    "figure.figsize": (8.0, 6.0),
+    "figure.figsize": (3.5, 2.625),  # 89mm width, 4:3 aspect ratio
     "figure.dpi": 300,
+    "font.size": 7,
+    "axes.labelsize": 7,
+    "axes.titlesize": 7,
+    "xtick.labelsize": 6,
+    "ytick.labelsize": 6,
+    "legend.fontsize": 6,
+    "font.family": "sans-serif",
+    "font.sans-serif": ["Arial", "Helvetica", "sans-serif"],
+    "lines.linewidth": 1.0,
+    "axes.linewidth": 0.5,
+    "grid.linewidth": 0.5,
     "savefig.bbox": "tight",
 }
 
 SCIENCE_STYLE: Dict[str, Any] = {
     **NATURE_STYLE,
-    "font_family": "Times New Roman, Times, serif",
-    "font.family": "serif",
-    "font.serif": ["Times New Roman", "Times", "Liberation Serif", "serif"],
-    "colors": dict(_COMMON_COLORS),  # own copy
+    "font_size": 8,
+    "figure.figsize": (3.5, 2.5),
+    "font.size": 8,
+    "axes.labelsize": 8,
+    "axes.titlesize": 8,
+    "xtick.labelsize": 7,
+    "ytick.labelsize": 7,
+    "legend.fontsize": 7,
+    "colors": dict(_COMMON_COLORS),
 }
 
-DARK_STYLE: Dict[str, Any] = {
+# General guidelines for IEEE conferences & journals:
+# - Single column width: 3.5 inches
+# - Font size: 8-10 pt (usually matching column text or slightly smaller)
+# - Font family: Times New Roman, Arial, or Helvetica
+IEEE_STYLE: Dict[str, Any] = {
     **NATURE_STYLE,
+    "font_family": "Times New Roman, Times, serif",
+    "font_size": 8,
+    "stroke_width": 1.0,
+    "figure.figsize": (3.5, 2.5),
+    "font.size": 8,
+    "axes.labelsize": 8,
+    "axes.titlesize": 9,
+    "xtick.labelsize": 8,
+    "ytick.labelsize": 8,
+    "legend.fontsize": 8,
+    "font.family": "serif",
+    "font.serif": ["Times New Roman", "Times", "serif"],
+    "lines.linewidth": 1.25,
+    "axes.linewidth": 0.8,
+    "grid.linewidth": 0.5,
+    "colors": dict(_COMMON_COLORS),
+}
+
+# General guidelines for Optica (formerly OSA):
+# - Column width: ~3.25 inches to 3.5 inches
+# - Font size: 9-10 pt
+OPTICA_STYLE: Dict[str, Any] = {
+    **IEEE_STYLE,
+    "font_family": "Arial, Helvetica, sans-serif",
+    "font_size": 9,
+    "figure.figsize": (3.25, 2.5),
+    "font.size": 9,
+    "axes.labelsize": 9,
+    "axes.titlesize": 10,
+    "xtick.labelsize": 8,
+    "ytick.labelsize": 8,
+    "legend.fontsize": 8,
+    "font.family": "sans-serif",
+    "font.sans-serif": ["Arial", "Helvetica", "sans-serif"],
+    "lines.linewidth": 1.5,
+    "colors": dict(_COMMON_COLORS),
+}
+
+# General guidelines for SPIE proceedings:
+# - Column width: ~3.4 inches (or full width 6.75)
+# - Font size: 10 pt
+SPIE_STYLE: Dict[str, Any] = {
+    **IEEE_STYLE,
+    "font_family": "Arial, Helvetica, sans-serif",
+    "font_size": 10,
+    "figure.figsize": (3.4, 2.5),
+    "font.size": 10,
+    "axes.labelsize": 10,
+    "axes.titlesize": 11,
+    "xtick.labelsize": 9,
+    "ytick.labelsize": 9,
+    "legend.fontsize": 9,
+    "font.family": "sans-serif",
+    "font.sans-serif": ["Arial", "Helvetica", "sans-serif"],
+    "colors": dict(_COMMON_COLORS),
+}
+
+# ---- Alternative Styles -------------------------------------------------
+
+DARK_STYLE: Dict[str, Any] = {
+    **NATURE_STYLE,  # Base sizing
     "colors": {
         "primary": "#56B4E9",
         "secondary": "#E69F00",
@@ -96,18 +176,18 @@ PRESENTATION_STYLE: Dict[str, Any] = {
     "ytick.labelsize": 18,
     "legend.fontsize": 18,
     "lines.linewidth": 3.0,
-    "figure.figsize": (12.0, 7.0),
+    "figure.figsize": (10.0, 5.625),  # 16:9 ratio
     "figure.dpi": 150,
-    "colors": dict(_COMMON_COLORS),  # own copy
+    "colors": dict(_COMMON_COLORS),
 }
 
 MINIMAL_STYLE: Dict[str, Any] = {
     **NATURE_STYLE,
     "font_family": "Helvetica Neue, Helvetica, Arial, sans-serif",
-    "stroke_width": 1.5,
-    "axes.linewidth": 0.8,
-    "grid.linewidth": 0.5,
-    "lines.linewidth": 2.0,
+    "stroke_width": 0.75,
+    "axes.linewidth": 0.5,
+    "grid.linewidth": 0.25,
+    "lines.linewidth": 1.0,
     "axes.grid": False,
     "colors": {
         **_COMMON_COLORS,
@@ -120,6 +200,9 @@ MINIMAL_STYLE: Dict[str, Any] = {
 _BUILT_IN_STYLES: Dict[str, Dict[str, Any]] = {
     "nature": NATURE_STYLE,
     "science": SCIENCE_STYLE,
+    "ieee": IEEE_STYLE,
+    "optica": OPTICA_STYLE,
+    "spie": SPIE_STYLE,
     "dark": DARK_STYLE,
     "presentation": PRESENTATION_STYLE,
     "minimal": MINIMAL_STYLE,
