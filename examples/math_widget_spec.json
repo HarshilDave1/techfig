@@ -1,0 +1,47 @@
+{
+  "title": "Damped Harmonic Oscillator",
+  "description": "Adjust the parameters to see the amplitude factor at t = 2.",
+  "equation": "A * exp(-gamma * t) * cos(omega * t + phi)",
+  "variables": [
+    {
+      "name": "A",
+      "label": "A_0",
+      "min": 0,
+      "max": 10,
+      "step": 0.5,
+      "value": 5.0
+    },
+    {
+      "name": "gamma",
+      "label": "\\gamma",
+      "min": 0,
+      "max": 2,
+      "step": 0.1,
+      "value": 0.5
+    },
+    {
+      "name": "omega",
+      "label": "\\omega",
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "value": 10
+    },
+    {
+      "name": "phi",
+      "label": "\\phi",
+      "min": 0,
+      "max": 6.28,
+      "step": 0.1,
+      "value": 0.0
+    },
+    {
+      "name": "t",
+      "label": "t",
+      "min": 0,
+      "max": 10,
+      "step": 0.5,
+      "value": 2.0
+    }
+  ]
+}

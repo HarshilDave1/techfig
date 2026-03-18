@@ -34,3 +34,8 @@ output/
 
 # Temporary
 *.tmp
+
+*.mp4
+*.png
+*.svg
+*.gif

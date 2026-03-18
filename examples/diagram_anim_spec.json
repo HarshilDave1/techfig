@@ -1,0 +1,47 @@
+{
+  "type": "diagram",
+  "title": "Signal Processing Pipeline",
+  "subtitle": "Data flows left to right",
+  "style": "dark",
+  "animation": "step_by_step",
+  "elements": [
+    {
+      "id": "input",  "type": "circle",  "x": 0,   "y": 0,
+      "text": "Input",  "role": "accent",
+      "r": 45
+    },
+    {
+      "id": "fft",    "type": "box",     "x": 180,  "y": 0,
+      "text": "FFT",    "caption": "Fast Fourier Transform",
+      "w": 120, "h": 55
+    },
+    {
+      "id": "filter", "type": "box",     "x": 360,  "y": -70,
+      "text": "Filter", "group": 1,
+      "w": 120, "h": 55
+    },
+    {
+      "id": "ift",    "type": "box",     "x": 360,  "y": 70,
+      "text": "IFT",    "group": 1, "caption": "Inverse FT",
+      "w": 120, "h": 55
+    },
+    {
+      "id": "merge",  "type": "diamond", "x": 530,  "y": 0,
+      "text": "Merge", "role": "warning",
+      "w": 100, "h": 60
+    },
+    {
+      "id": "output", "type": "circle",  "x": 700,  "y": 0,
+      "text": "Output", "role": "accent",
+      "r": 45
+    }
+  ],
+  "connections": [
+    {"from": "input",  "to": "fft",    "label": "raw signal"},
+    {"from": "fft",    "to": "filter"},
+    {"from": "fft",    "to": "ift"},
+    {"from": "filter", "to": "merge"},
+    {"from": "ift",    "to": "merge"},
+    {"from": "merge",  "to": "output", "label": "clean"}
+  ]
+}

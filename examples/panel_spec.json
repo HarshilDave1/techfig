@@ -1,0 +1,35 @@
+{
+  "layout": [2, 2],
+  "figsize": [12, 10],
+  "title": "Comprehensive Experimental Results",
+  "style": "nature",
+  "panels": [
+    {
+      "row": 0, "col": 0, "label": "A",
+      "chart": {
+         "type": "bar",
+         "data": "examples/sample_data.csv",
+         "x_col": "category", "y_col": "value", "hue_col": "group",
+         "title": "Bar Chart"
+      }
+    },
+    {
+      "row": 0, "col": 1, "label": "B",
+      "chart": {
+         "type": "scatter",
+         "data": "examples/sample_data.csv",
+         "x_col": "value", "y_col": "value", "hue_col": "group",
+         "title": "Scatter Plot"
+      }
+    },
+    {
+      "row": 1, "col": 0, "colspan": 2, "label": "C",
+      "chart": {
+         "type": "line",
+         "data": "examples/sample_data.csv",
+         "x_col": "category", "y_col": "value", "hue_col": "group",
+         "title": "Line Plot (Spanning 2 Columns)"
+      }
+    }
+  ]
+}

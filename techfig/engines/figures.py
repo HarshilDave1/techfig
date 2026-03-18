@@ -24,7 +24,7 @@ CHART_TYPES = ("bar", "line", "scatter", "box", "histogram", "heatmap")
 def create_chart(
     data: Union[str, Path, PlotData],
     chart_type: str,
-    output_path: str,
+    output_path: str = "",
     title: str = "",
     x_col: Optional[str] = None,
     y_col: Optional[str] = None,
@@ -33,6 +33,7 @@ def create_chart(
     ylabel: Optional[str] = None,
     style_name: str = "nature",
     style_overrides: Optional[Dict[str, Any]] = None,
+    ax: Optional[matplotlib.axes.Axes] = None,
 ) -> str:
     """Generate a data visualization chart.
 
@@ -40,7 +41,7 @@ def create_chart(
         data: File path or raw data structures.
         chart_type: One of ``bar``, ``line``, ``scatter``, ``histogram``,
             ``box``, ``heatmap``.
-        output_path: Where to save the figure (.svg or .png).
+        output_path: Where to save the figure (.svg or .png). Optional if ax is provided.
         title: Figure title.
         x_col: Column name for X axis.
         y_col: Column name for Y axis.
@@ -49,12 +50,10 @@ def create_chart(
         ylabel: Custom Y-axis label (defaults to ``y_col``).
         style_name: Name of the built-in style to apply.
         style_overrides: Additional rcParams to override the base style.
+        ax: Existing matplotlib axis to draw on. If provided, the figure will not be saved automatically.
 
     Returns:
-        The absolute path to the generated file.
-
-    Raises:
-        ValueError: If ``chart_type`` is not one of the supported types.
+        The absolute path to the generated file, or an empty string if an ax was provided.
     """
     if chart_type not in CHART_TYPES:
         raise ValueError(
@@ -80,8 +79,12 @@ def create_chart(
     with plt.rc_context(rc_params):
         sns.set_theme(style="whitegrid", rc=rc_params)
 
-        figsize = rc_params.get("figure.figsize", (8, 6))
-        fig, ax = plt.subplots(figsize=figsize)
+        is_provided_ax = ax is not None
+        if not is_provided_ax:
+            figsize = rc_params.get("figure.figsize", (8, 6))
+            fig, ax = plt.subplots(figsize=figsize)
+        else:
+            fig = ax.figure
 
         # Extract palette
         if "colors" in base_style:
@@ -124,21 +127,23 @@ def create_chart(
 
         sns.despine(ax=ax)
 
-        # 5. Save
-        out_file = Path(output_path).resolve()
-        out_file.parent.mkdir(parents=True, exist_ok=True)
+        # 5. Save if no ax was provided
+        if not is_provided_ax and output_path:
+            out_file = Path(output_path).resolve()
+            out_file.parent.mkdir(parents=True, exist_ok=True)
 
-        fmt = out_file.suffix.lstrip(".")
-        if not fmt:
-            fmt = "svg"
-            out_file = out_file.with_suffix(".svg")
+            fmt = out_file.suffix.lstrip(".")
+            if not fmt:
+                fmt = "svg"
+                out_file = out_file.with_suffix(".svg")
 
-        fig.savefig(
-            str(out_file),
-            format=fmt,
-            dpi=rc_params.get("figure.dpi", 300),
-            bbox_inches=rc_params.get("savefig.bbox", "tight"),
-        )
-        plt.close(fig)
+            fig.savefig(
+                str(out_file),
+                format=fmt,
+                dpi=rc_params.get("figure.dpi", 300),
+                bbox_inches=rc_params.get("savefig.bbox", "tight"),
+            )
+            plt.close(fig)
+            return str(out_file)
 
-    return str(out_file)
+    return ""

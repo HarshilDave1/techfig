@@ -323,7 +323,8 @@ def create_animation(spec: Union[str, Dict[str, Any]], output_path: str, quality
     Renders an animated version of a physics simulation or diagram using Matplotlib Animation or Manim.
     """
     if isinstance(spec, str):
-        spec = load_data(spec)
+        with open(spec, 'r') as f:
+            spec = json.load(f)
         
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     
@@ -331,6 +332,32 @@ def create_animation(spec: Union[str, Dict[str, Any]], output_path: str, quality
     
     spec_type = spec.get("type", "manim_diagram")
     if spec_type == "physics":
-        return _create_physics_animation(spec, output_path, fps=fps)
+        out = _create_physics_animation(spec, output_path, fps=fps)
+    elif spec_type == "diagram":
+        from techfig.engines.diagram_manim_bridge import render_diagram_animation
+        out = render_diagram_animation(spec, output_path, quality=quality, preview=False)
     else:
-        return _create_manim_animation(spec, output_path, quality=quality, preview=preview)
+        out = _create_manim_animation(spec, output_path, quality=quality, preview=preview)
+
+    if preview:
+        import subprocess
+        preview_path = None
+        if output_path.endswith(('.mp4', '.gif')):
+            preview_path = output_path.rsplit('.', 1)[0] + '_preview.png'
+            try:
+                subprocess.run([
+                    "ffmpeg", "-y", "-i", output_path, "-vframes", "1", "-f", "image2", preview_path
+                ], check=True, capture_output=True)
+            except Exception as e:
+                print(f"Failed to generate preview: {e}")
+                preview_path = None
+                
+        file_size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+        return {
+            "output_path": output_path,
+            "preview_path": preview_path,
+            "size_bytes": file_size,
+            "type": spec_type
+        }
+        
+    return out

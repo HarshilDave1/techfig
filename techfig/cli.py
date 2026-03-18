@@ -84,6 +84,52 @@ def main():
     anim_p.add_argument("--quality", choices=["l", "m", "h", "p", "k"], default="l", help="Video quality (l=480p, m=720p, h=1080p, p=1440p, k=2160p)")
     anim_p.add_argument("--preview", action="store_true", help="Auto-play animation after rendering")
 
+    # ---- panel -----------------------------------------------------------
+    panel_p = subparsers.add_parser(
+        "panel",
+        help="Generate a multi-panel figure from a JSON spec",
+    )
+    panel_p.add_argument("input", help="JSON file with panel spec")
+    panel_p.add_argument("-o", "--output", required=True, help="Output file (.png/.svg)")
+
+    # ---- equation --------------------------------------------------------
+    eq_p = subparsers.add_parser(
+        "equation",
+        help="Render a LaTeX math equation to SVG/PNG using mathtext",
+    )
+    eq_p.add_argument("latex", help="The LaTeX math string (e.g. \\nabla \\cdot E)")
+    eq_p.add_argument("-o", "--output", required=True, help="Output file")
+    eq_p.add_argument("--style", default="nature", help="Style preset")
+    eq_p.add_argument("--fontsize", type=int, default=24, help="Font size")
+
+    # ---- animate-svg -----------------------------------------------------
+    anim_svg_p = subparsers.add_parser(
+        "animate-svg",
+        help="Apply simple CSS/SMIL animations to an existing SVG",
+    )
+    anim_svg_p.add_argument("input", help="Input SVG file")
+    anim_svg_p.add_argument("-o", "--output", required=True, help="Output animated SVG file")
+    anim_svg_p.add_argument("--type", choices=["draw", "fade", "pulse"], default="draw", help="Animation type")
+    anim_svg_p.add_argument("--duration", type=float, default=2.0, help="Animation duration (s)")
+    anim_svg_p.add_argument("--stagger", type=float, default=0.5, help="Stagger delay between elements (s)")
+
+    # ---- math-widget -----------------------------------------------------
+    math_p = subparsers.add_parser(
+        "math-widget",
+        help="Generate an interactive HTML math widget",
+    )
+    math_p.add_argument("input", help="JSON file with widget spec (equation + variables)")
+    math_p.add_argument("-o", "--output", required=True, help="Output HTML file")
+
+    # ---- diagram-anim ----------------------------------------------------
+    diaganim_p = subparsers.add_parser(
+        "diagram-anim",
+        help="Animate a diagram spec as an MP4 via Manim (requires manim/ffmpeg)",
+    )
+    diaganim_p.add_argument("input", help="JSON diagram spec file")
+    diaganim_p.add_argument("-o", "--output", required=True, help="Output MP4 file")
+    diaganim_p.add_argument("--quality", choices=["l", "m", "h", "p", "k"], default="l", help="Video quality")
+
     # ---- prompt ----------------------------------------------------------
     subparsers.add_parser(
         "prompt",
@@ -233,9 +279,62 @@ def main():
         print(f"Rendering Manim animation {args.input} -> {args.output}...")
         try:
             out = create_animation(args.input, args.output, quality=args.quality, preview=args.preview)
+            if isinstance(out, dict):
+                import json
+                print(f"Animation saved. Metadata:\n{json.dumps(out, indent=2)}")
+            else:
+                print(f"Animation saved to {out}")
+        except Exception as e:
+            print(f"Error: {e}")
+
+    elif args.command == "panel":
+        from techfig.engines.panels import create_figure_panel
+        print(f"Rendering multi-panel figure {args.input} -> {args.output}...")
+        out = create_figure_panel(args.input, args.output)
+        print(f"Panel saved to {out}")
+
+    elif args.command == "equation":
+        from techfig.engines.equations import render_equation
+        print(f"Rendering equation -> {args.output}...")
+        out = render_equation(args.latex, args.output, style_name=args.style, fontsize=args.fontsize)
+        print(f"Equation saved to {out}")
+
+    elif args.command == "animate-svg":
+        from techfig.engines.svg_animator import animate_svg
+        print(f"Animating SVG {args.input} ({args.type}) -> {args.output}...")
+        out = animate_svg(args.input, args.output, args.type, args.duration, args.stagger)
+        print(f"Animated SVG saved to {out}")
+
+    elif args.command == "math-widget":
+        from techfig.engines.interactive_math import create_math_widget
+        import json
+        with open(args.input, "r") as f:
+            spec = json.load(f)
+        
+        print(f"Generating math widget {args.input} -> {args.output}...")
+        out = create_math_widget(
+            spec.get("equation", ""),
+            args.output,
+            spec.get("variables", []),
+            title=spec.get("title", "Interactive Math Widget"),
+            description=spec.get("description", "")
+        )
+        print(f"Math widget saved to {out}")
+
+    elif args.command == "diagram-anim":
+        from techfig.engines.diagram_manim_bridge import render_diagram_animation
+        import json
+        with open(args.input, "r") as f:
+            spec = json.load(f)
+        out_path = args.output if args.output.endswith(".mp4") else args.output + ".mp4"
+        print(f"Animating diagram {args.input} -> {out_path} (quality={args.quality})...")
+        try:
+            out = render_diagram_animation(spec, out_path, quality=args.quality)
             print(f"Animation saved to {out}")
         except ImportError as e:
             print(f"Error: {e}")
+        except RuntimeError as e:
+            print(f"Manim rendering failed: {e}")
 
     elif args.command == "prompt":
         print(get_sketch_prompt())
