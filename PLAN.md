@@ -80,24 +80,39 @@ Core functions for PowerPoint generation:
 - `add_figure_slide(deck, figure_path, title, notes)` → inserts a figure into an existing deck
 - `apply_theme(deck, theme_name)` → applies color/font theme to entire deck
 
-### 1.4 — MCP Server (`techfig/mcp_server.py`)
+### 1.4 — Advanced Engines (`techfig/engines/`)
+
+Newly added powerful processing capabilities:
+- **Animations (`animations.py`, `manim_bridge.py`)**: Generate MP4 animations from diagram specs using Manim or Matplotlib physics.
+- **Interactive Math (`interactive_math.py`, `equations.py`)**: Create interactive HTML widgets for equations using SymPy/Plotly.
+- **Autoresearch & Visual Refinement (`autoresearch.py`, `aesthetic_critic.py`, `geo_linter.py`)**: Automatically refine SVG layouts using vision models and geometric alignment constraints.
+- **Panels (`panels.py`)**: Support for complex multi-panel figures.
+
+### 1.5 — MCP Server (`techfig/mcp_server.py`)
 
 Exposes the engines as MCP tools:
 
 | Tool | Input | Output |
 |------|-------|--------|
-| `create_figure` | data (file path or inline), chart_type, title, style | SVG/PNG file path |
+| `create_figure` | data (file path or inline), chart_type, title, style | SVG/PNG file path or Interactive HTML |
 | `create_diagram` | description, elements, connections, style | SVG file path |
+| `reconstruct_diagram` | spec JSON, auto_refine | SVG file path |
+| `refine_diagram` | spec JSON | Refined SVG + context |
 | `create_slides` | title, slide definitions (with optional figure paths) | .pptx file path |
+| `create_animation`| diagram spec JSON, quality | MP4 video file |
+| `export_tikz` | data/nodes, chart_type/edges | .tex file |
+| `batch_generate` | manifest file | Generated files |
 | `list_styles` | — | available style presets |
+| `list_components`| — | available standard/lab components |
 | `export_figure` | input_path, output_format | converted file path |
 
-### 1.5 — CLI (`techfig/cli.py`)
+### 1.6 — CLI (`techfig/cli.py`)
 
 Simple CLI for standalone use:
 
 ```bash
 techfig chart --data results.csv --type bar --style nature -o fig1.svg
+techfig diagram --input nodes.json -o flow.svg
 techfig slides --input outline.yaml -o presentation.pptx
 techfig export fig1.svg --format png --dpi 300
 ```
@@ -106,12 +121,9 @@ techfig export fig1.svg --format png --dpi 300
 
 ## Phase 2: Enhanced Features (After MVP Works)
 
-- **Sketch-to-diagram:** Pass a photo of a hand-drawn sketch + description → structured SVG
-- **LaTeX/TikZ export:** `export_figure --format tikz` for paper integration
-- **Manim animations:** `create_animation` tool for generating explanation videos
-- **Batch mode:** "Take figures 1–6 and create a 10-slide deck with speaker notes"
-- **Style customization:** User-defined `.yaml` style files in project directory
-- **Template gallery:** Pre-built templates for common scientific diagrams (experimental setups, circuit diagrams, molecular structures, etc.)
+- **Sketch-to-diagram (Partial):** Currently reconstructing via JSON specs, and generating stunning 3D Visual Metaphor images via `--pretty`. Expand to raw image-to-diagram end-to-end integration.
+- **Batch mode:** Improve the `batch_generate` tool with more complex workflows.
+- **Template gallery:** Expand pre-built templates for common scientific diagrams (experimental setups, circuit diagrams, molecular structures, etc.)
 
 ---
 
@@ -184,8 +196,11 @@ openpyxl >= 3.1        # Excel support
 pyyaml >= 6.0          # Style config files
 cairosvg >= 2.7        # SVG → PNG/PDF conversion
 mcp >= 1.0             # MCP server SDK
+schemdraw >= 0.22      # Circuit/diagram components
+litellm >= 1.82.4      # AI interaction mapping
+playwright >= 1.58.0   # Testing/interaction rendering
 
-# Phase 2
+# Advanced Capabilities
 manim >= 0.18          # Animation engine
 Pillow >= 10.0         # Sketch image processing
 ```

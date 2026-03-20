@@ -35,7 +35,7 @@ The **Self-Improvement Agent (`sage`)** should monitor the results over time:
 *   **Recursive Feedback:** Combining a "Geometry Critic" with an "Aesthetic Critic" ensures the output is both professional and accurate.
 
 ### Next Steps
-1.  [ ] Prototype a "Geometric Linter" script to snap JSON specs to a grid.
-2.  [ ] Test the "Pretty" image-to-image workflow using a current SVG as a seed for `nano-banana-pro`.
-3.  [ ] Create a unified "Critic" prompt that handles both alignment and aesthetic scoring.
-4.  [ ] Pilot a "5-round sprint" on a standard photonic circuit diagram.
+1.  [x] Prototype a "Geometric Linter" script to snap JSON specs to a grid.
+2.  [x] Test the "Pretty" image-to-image workflow using a current SVG as a seed for `nano-banana-pro`.
+3.  [x] Create a unified "Critic" prompt that handles both alignment and aesthetic scoring.
+4.  [x] Pilot a "5-round sprint" on a standard photonic circuit diagram.

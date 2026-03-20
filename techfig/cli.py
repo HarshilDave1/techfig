@@ -8,9 +8,10 @@ from techfig.engines.diagrams import create_flowchart
 from techfig.engines.slides import create_presentation
 from techfig.engines.tikz_export import chart_to_tikz, diagram_to_tikz
 from techfig.engines.batch import batch_generate
-from techfig.engines.sketch_interpreter import render_from_json, get_sketch_prompt
+from techfig.engines.sketch_interpreter import render_from_json, get_sketch_prompt, sketch_to_diagram
 from techfig.utils.export import convert_format
 from techfig.styles.presets import get_available_styles
+from techfig.utils.config import load_config, set_config_val
 
 
 def main():
@@ -18,6 +19,8 @@ def main():
         description="TechFig: Technical Graphic Generator for Scientists",
     )
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
+
+    cfg = load_config()
 
     # ---- chart -----------------------------------------------------------
     chart_p = subparsers.add_parser("chart", help="Generate a statistical chart")
@@ -30,13 +33,15 @@ def main():
     chart_p.add_argument("--xlabel", help="Custom X-axis label")
     chart_p.add_argument("--ylabel", help="Custom Y-axis label")
     chart_p.add_argument("--title", default="", help="Chart title")
-    chart_p.add_argument("--style", default="nature", help="Style preset")
+    chart_p.add_argument("--style", default=cfg["style"], help="Style preset")
     chart_p.add_argument("-i", "--interactive", action="store_true", help="Generate interactive HTML plot (Plotly) instead of static image")
 
     # ---- diagram ---------------------------------------------------------
     diag_p = subparsers.add_parser("diagram", help="Generate a structural diagram")
     diag_p.add_argument("--input", required=True, help="JSON file with nodes and edges")
     diag_p.add_argument("-o", "--output", required=True, help="Output file (.svg/.png)")
+    diag_p.add_argument("--pretty", action="store_true", help="Generate a stylized rendering using an AI image model")
+    diag_p.add_argument("--pretty-model", default="openai/dall-e-3", help="Model to use for --pretty rendering (e.g. vertex_ai/imagen-3.0-generate-001)")
 
     # ---- slides ----------------------------------------------------------
     slides_p = subparsers.add_parser("slides", help="Generate a PowerPoint presentation")
@@ -59,12 +64,20 @@ def main():
     export_p = subparsers.add_parser("export", help="Convert between formats")
     export_p.add_argument("input", help="Source file (e.g. figure.svg)")
     export_p.add_argument("-o", "--output", required=True, help="Destination file (.png/.pdf)")
-    export_p.add_argument("--dpi", type=int, default=300, help="DPI for rasterization")
+    export_p.add_argument("--dpi", type=int, default=cfg["dpi"], help="DPI for rasterization")
 
     # ---- batch -----------------------------------------------------------
     batch_p = subparsers.add_parser("batch", help="Generate all items from a manifest")
     batch_p.add_argument("--input", required=True, help="YAML or JSON manifest file")
     batch_p.add_argument("-o", "--output-dir", help="Override output directory")
+
+    # ---- sketch ----------------------------------------------------------
+    sketch_p = subparsers.add_parser("sketch", help="End-to-end: convert sketch image to diagram SVG")
+    sketch_p.add_argument("input", help="Path to input image (e.g. photo.jpg or sketch.png)")
+    sketch_p.add_argument("-o", "--output", required=True, help="Output SVG file")
+    sketch_p.add_argument("--model", default=cfg.get("sketch_model", "gemini/gemini-2.5-pro"), help="Vision model to use")
+    sketch_p.add_argument("--auto-refine", action="store_true", help="Launch autonomous visual refinement loop")
+    sketch_p.add_argument("--max-rounds", type=int, default=cfg["max_rounds"], help="Max auto-refinement rounds")
 
     # ---- reconstruct -----------------------------------------------------
     recon_p = subparsers.add_parser(
@@ -74,8 +87,10 @@ def main():
     recon_p.add_argument("input", help="JSON file with diagram spec")
     recon_p.add_argument("-o", "--output", required=True, help="Output SVG file")
     recon_p.add_argument("--auto-refine", action="store_true", help="Launch the autonomous autoresearch visual refinement loop")
-    recon_p.add_argument("--max-rounds", type=int, default=5, help="Max auto-refinement rounds")
+    recon_p.add_argument("--max-rounds", type=int, default=cfg["max_rounds"], help="Max auto-refinement rounds")
     recon_p.add_argument("--ref-image", help="Optional original sketch image for aesthetic scoring context")
+    recon_p.add_argument("--pretty", action="store_true", help="Generate a stylized rendering using an AI image model")
+    recon_p.add_argument("--pretty-model", default=cfg["pretty_model"], help="Model to use for --pretty rendering (e.g. vertex_ai/imagen-3.0-generate-001)")
 
     # ---- animate ---------------------------------------------------------
     anim_p = subparsers.add_parser(
@@ -84,7 +99,7 @@ def main():
     )
     anim_p.add_argument("input", help="JSON file with diagram spec")
     anim_p.add_argument("-o", "--output", required=True, help="Output MP4 file")
-    anim_p.add_argument("--quality", choices=["l", "m", "h", "p", "k"], default="l", help="Video quality (l=480p, m=720p, h=1080p, p=1440p, k=2160p)")
+    anim_p.add_argument("--quality", choices=["l", "m", "h", "p", "k"], default=cfg["quality"], help="Video quality (l=480p, m=720p, h=1080p, p=1440p, k=2160p)")
     anim_p.add_argument("--preview", action="store_true", help="Auto-play animation after rendering")
 
     # ---- panel -----------------------------------------------------------
@@ -141,6 +156,14 @@ def main():
 
     # ---- styles ----------------------------------------------------------
     subparsers.add_parser("styles", help="List available style presets")
+
+    # ---- config ----------------------------------------------------------
+    cfg_p = subparsers.add_parser("config", help="Manage TechFig configuration")
+    cfg_sub = cfg_p.add_subparsers(dest="cfg_command", help="Config command")
+    cfg_sub.add_parser("list", help="List current configuration")
+    cfg_set = cfg_sub.add_parser("set", help="Set a configuration value")
+    cfg_set.add_argument("key", help="Configuration key (e.g. style, pretty_model, dpi)")
+    cfg_set.add_argument("value", help="Configuration value")
 
     # ---- components ------------------------------------------------------
     comp_p = subparsers.add_parser("components", help="Manage component library")
@@ -217,6 +240,15 @@ def main():
             data = json.load(f)
         out = create_flowchart(data.get("nodes", []), data.get("edges", []), args.output)
         print(f"Diagram saved to {out}")
+        
+        if getattr(args, "pretty", False):
+            from techfig.engines.pretty import generate_pretty_image
+            import os
+            base_name, _ = os.path.splitext(out)
+            pretty_out = f"{base_name}_pretty.png"
+            print(f"Generating pretty rendering using {args.pretty_model}...")
+            final_out = generate_pretty_image(out, pretty_out, model=args.pretty_model)
+            print(f"Pretty rendering saved to {final_out}")
 
     elif args.command == "slides":
         print(f"Generating slides from {args.input}...")
@@ -259,6 +291,16 @@ def main():
         for r in results:
             print(f"  {r}")
 
+    elif args.command == "sketch":
+        from techfig.engines.sketch_interpreter import sketch_to_diagram
+        out = sketch_to_diagram(
+            image_path=args.input,
+            output_path=args.output,
+            model=args.model,
+            auto_refine_rounds=args.max_rounds if args.auto_refine else 0
+        )
+        print(f"Diagram successfully generated: {out}")
+
     elif args.command == "reconstruct":
         if getattr(args, "auto_refine", False):
             from techfig.engines.sketch_interpreter import auto_refine
@@ -280,6 +322,15 @@ def main():
             print(f"Rendering diagram spec {args.input} → {args.output}...")
             out = render_from_json(args.input, args.output)
             print(f"SVG saved to {out}")
+            
+        if getattr(args, "pretty", False):
+            from techfig.engines.pretty import generate_pretty_image
+            import os
+            base_name, _ = os.path.splitext(out)
+            pretty_out = f"{base_name}_pretty.png"
+            print(f"Generating pretty rendering using {args.pretty_model}...")
+            final_out = generate_pretty_image(out, pretty_out, model=args.pretty_model)
+            print(f"Pretty rendering saved to {final_out}")
 
     elif args.command == "vectorize":
         from techfig.engines.vectorize import vectorize_image, vectorize_with_preset
@@ -365,6 +416,16 @@ def main():
     elif args.command == "components":
         _handle_components_command(args)
 
+    elif args.command == "config":
+        if args.cfg_command == "list":
+            for k, v in cfg.items():
+                print(f"{k}: {v}")
+        elif args.cfg_command == "set":
+            set_config_val(args.key, args.value)
+            print(f"Set config '{args.key}' to '{args.value}'")
+        else:
+            print("Usage: techfig config [list|set] [key] [value]")
+            
     else:
         parser.print_help()
         sys.exit(1)

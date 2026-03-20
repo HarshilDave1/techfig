@@ -1,0 +1,14 @@
+{
+  "canvas": { "width": 800, "height": 600 },
+  "elements": [
+    {"type": "box", "id": "input", "x": -200, "y": 0, "w": 80, "h": 200, "text": "Input\nLayer", "color": "#2c3e50", "fill_opacity": 0.2},
+    {"type": "box", "id": "hidden1", "x": 0, "y": 0, "w": 80, "h": 160, "text": "Hidden\nLayer 1", "color": "#2980b9", "fill_opacity": 0.4},
+    {"type": "box", "id": "hidden2", "x": 200, "y": 0, "w": 80, "h": 160, "text": "Hidden\nLayer 2", "color": "#2980b9", "fill_opacity": 0.4},
+    {"type": "box", "id": "output", "x": 400, "y": 0, "w": 80, "h": 100, "text": "Output\nLayer", "color": "#27ae60", "fill_opacity": 0.3}
+  ],
+  "connections": [
+    {"from": "input", "to": "hidden1", "style": "arrow", "color": "#7f8c8d"},
+    {"from": "hidden1", "to": "hidden2", "style": "arrow", "color": "#7f8c8d"},
+    {"from": "hidden2", "to": "output", "style": "arrow", "color": "#7f8c8d"}
+  ]
+}

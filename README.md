@@ -38,17 +38,18 @@ pip install "techfig[animation]" # + Matplotlib physics animations
 
 # For Manim diagram animations, system dependencies (Cairo, FFMPEG) are required.
 # We recommend using Conda:
-conda create -n techfig_manim python=3.10 -y
-conda activate techfig_manim
-conda install -c conda-forge manim ffmpeg -y
+### Installation
+
+```bash
 pip install techfig
+pip install "techfig[mcp]"  # Optional: install MCP server support
 ```
 
-**From source (development):**
+*For developers, you can also clone and use `uv`:*
 ```bash
-git clone https://github.com/harshil/techfig
+git clone https://github.com/harshil/techfig.git
 cd techfig
-pip install -e ".[all]"
+uv sync
 ```
 
 ## Quick Start
@@ -59,8 +60,18 @@ techfig chart --data results.csv --type bar --style nature -o fig1.svg
 # Diagram from JSON
 techfig diagram --input nodes.json -o flow.svg
 
+# End-to-end: take a sketch photo and instantly convert to diagram SVG
+techfig sketch whiteboard_sketch.jpg -o diagram.svg
+
 # Reconstruct diagram from JSON spec (output from LLM vision)
 techfig reconstruct spec.json -o diagram.svg
+
+# Start from built-in templates for inspiration!
+techfig reconstruct techfig/templates/optical_bench.json -o optical_bench.svg --pretty
+
+
+# Reconstruct a diagram and generate a "pretty" 3D image using an AI model
+techfig reconstruct spec.json -o diagram.svg --pretty --pretty-model openai/dall-e-3
 
 # Print the LLM system prompt for sketch interpretation
 techfig prompt
@@ -95,7 +106,7 @@ Add to your assistant's MCP config:
 }
 ```
 
-**Available tools:** `create_chart`, `create_diagram`, `reconstruct_diagram`, `get_sketch_prompt`, `create_slides`, `export_tikz`, `export_figure`, `list_styles`, `batch_generate`
+**Available tools:** `create_chart`, `create_diagram`, `reconstruct_diagram` (supports `pretty` rendering mode), `get_sketch_prompt`, `create_slides`, `export_tikz`, `export_figure`, `list_styles`, `batch_generate`
 
 ## Styles
 

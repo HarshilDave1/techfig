@@ -28,6 +28,7 @@ from techfig.engines.sketch_interpreter import (
 )
 from techfig.utils.export import convert_format
 from techfig.styles.presets import get_available_styles
+from techfig.utils.config import load_config
 
 logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 logger = logging.getLogger("techfig_mcp")
@@ -43,6 +44,7 @@ async def list_tools() -> list[Tool]:
     chart_types = list(CHART_TYPES)
     shapes = list(SUPPORTED_SHAPES)
     styles = get_available_styles()
+    cfg = load_config()
 
     return [
         Tool(
@@ -69,7 +71,7 @@ async def list_tools() -> list[Tool]:
                     "hue_col": {"type": "string"},
                     "xlabel": {"type": "string", "description": "Custom X-axis label"},
                     "ylabel": {"type": "string", "description": "Custom Y-axis label"},
-                    "style": {"type": "string", "enum": styles, "default": "nature"},
+                    "style": {"type": "string", "enum": styles, "default": cfg.get("style", "nature")},
                     "interactive": {"type": "boolean", "default": False, "description": "Set to true to generate an interactive Plotly HTML file instead of an SVG/PNG."},
                 },
                 "required": ["data_json", "chart_type", "output_path"],
@@ -154,6 +156,16 @@ async def list_tools() -> list[Tool]:
                     "ref_image": {
                         "type": "string",
                         "description": "Optional: Absolute path to the original sketch image, for context in auto_refine.",
+                    },
+                    "pretty": {
+                        "type": "boolean",
+                        "description": "Optional: set to True to render an aesthetic 'Visual Metaphor' PNG using an AI image model from the base SVG.",
+                        "default": False,
+                    },
+                    "pretty_model": {
+                        "type": "string",
+                        "description": f"Model to use if pretty is True (e.g., openai/dall-e-3, vertex_ai/imagen-3.0-generate-001)",
+                        "default": cfg.get("pretty_model", "openai/dall-e-3"),
                     },
                 },
                 "required": ["spec", "output_path"],
@@ -261,7 +273,7 @@ async def list_tools() -> list[Tool]:
                     "quality": {
                         "type": "string",
                         "enum": ["l", "m", "h", "p", "k"],
-                        "default": "l",
+                        "default": cfg.get("quality", "l"),
                         "description": "Video quality (l=480p, m=720p, h=1080p, p=1440p, k=2160p).",
                     },
                 },
@@ -308,7 +320,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "input_path": {"type": "string"},
                     "output_path": {"type": "string"},
-                    "dpi": {"type": "integer", "default": 300},
+                    "dpi": {"type": "integer", "default": cfg.get("dpi", 300)},
                 },
                 "required": ["input_path", "output_path"],
             },
@@ -391,10 +403,22 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                     max_rounds=5,
                 )
                 out = render_from_spec(best_spec, arguments["output_path"])
-                return [TextContent(type="text", text=f"Auto-refined diagram reconstructed and saved to {out}")]
+                text_content = f"Auto-refined diagram reconstructed and saved to {out}"
             else:
                 out = render_from_spec(spec, arguments["output_path"])
-                return [TextContent(type="text", text=f"Diagram reconstructed and saved to {out}")]
+                text_content = f"Diagram reconstructed and saved to {out}"
+                
+            if arguments.get("pretty"):
+                from techfig.engines.pretty import generate_pretty_image
+                import os
+                cfg = load_config()
+                base_name, _ = os.path.splitext(out)
+                pretty_out = f"{base_name}_pretty.png"
+                pretty_model = arguments.get("pretty_model", cfg.get("pretty_model", "openai/dall-e-3"))
+                final_out = generate_pretty_image(out, pretty_out, model=pretty_model)
+                text_content += f"\nPretty rendering saved to {final_out}"
+                
+            return [TextContent(type="text", text=text_content)]
 
         elif name == "get_sketch_prompt":
             prompt = get_sketch_prompt()

@@ -470,3 +470,78 @@ Output ONLY the complete, updated valid JSON spec matching the required schema. 
     
     best_spec = loop.run(mutator_fn)
     return best_spec
+
+
+def sketch_to_diagram(
+    image_path: str,
+    output_path: str,
+    model: str = "gemini/gemini-2.5-pro",
+    auto_refine_rounds: int = 0,
+) -> str:
+    """End-to-end command: take an image, use a Vision LLM to get a JSON spec, and render it.
+
+    Args:
+        image_path: Path to the input image (sketch/whiteboard).
+        output_path: Path to save the resulting SVG.
+        model: Litellm-compatible vision model.
+        auto_refine_rounds: If > 0, launches autoresearch loop to fix alignment/aesthetics.
+
+    Returns:
+        Absolute path to the final generated SVG.
+    """
+    import base64
+    from litellm import completion
+    from techfig.engines.aesthetic_critic import extract_json_from_response
+    import mimetypes
+    import os
+
+    # 1. Read and encode image
+    with open(image_path, "rb") as f:
+        img_data = f.read()
+    b64_image = base64.b64encode(img_data).decode("utf-8")
+    
+    mime_type, _ = mimetypes.guess_type(image_path)
+    if not mime_type:
+        mime_type = "image/jpeg"
+
+    # 2. Call Vision LLM
+    print(f"Analyzing {image_path} with {model}...")
+    messages = [
+        {"role": "system", "content": SKETCH_PROMPT},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Reconstruct this diagram into a JSON spec."},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime_type};base64,{b64_image}"},
+                },
+            ],
+        },
+    ]
+
+    response = completion(model=model, messages=messages)
+    reply_text = response.choices[0].message.content
+
+    # 3. Extract JSON spec
+    try:
+        spec = extract_json_from_response(reply_text)
+    except Exception as e:
+        raise ValueError(f"Failed to parse JSON from Vision LLM response.\nModel replied: {reply_text[:200]}...\nError: {e}")
+
+    # 4. Auto-refine if requested
+    if auto_refine_rounds > 0:
+        print(f"Refining output for up to {auto_refine_rounds} rounds...")
+        output_dir = os.path.dirname(output_path) or "."
+        spec = auto_refine(
+            initial_spec=spec,
+            output_dir=output_dir,
+            reference_image_path=image_path,
+            max_rounds=auto_refine_rounds,
+            model=model,
+        )
+
+    # 5. Render
+    print(f"Rendering SVG to {output_path}...")
+    return render_from_spec(spec, output_path)
+
