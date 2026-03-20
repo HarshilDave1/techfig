@@ -73,6 +73,9 @@ def main():
     )
     recon_p.add_argument("input", help="JSON file with diagram spec")
     recon_p.add_argument("-o", "--output", required=True, help="Output SVG file")
+    recon_p.add_argument("--auto-refine", action="store_true", help="Launch the autonomous autoresearch visual refinement loop")
+    recon_p.add_argument("--max-rounds", type=int, default=5, help="Max auto-refinement rounds")
+    recon_p.add_argument("--ref-image", help="Optional original sketch image for aesthetic scoring context")
 
     # ---- animate ---------------------------------------------------------
     anim_p = subparsers.add_parser(
@@ -257,9 +260,26 @@ def main():
             print(f"  {r}")
 
     elif args.command == "reconstruct":
-        print(f"Rendering diagram spec {args.input} → {args.output}...")
-        out = render_from_json(args.input, args.output)
-        print(f"SVG saved to {out}")
+        if getattr(args, "auto_refine", False):
+            from techfig.engines.sketch_interpreter import auto_refine
+            import os
+            print(f"Starting auto-refinement loop for {args.input}...")
+            with open(args.input) as f:
+                spec = json.load(f)
+            best_spec = auto_refine(
+                initial_spec=spec,
+                output_dir=os.path.dirname(args.output) or ".",
+                reference_image_path=args.ref_image,
+                max_rounds=args.max_rounds
+            )
+            # Render best spec to final output
+            from techfig.engines.sketch_interpreter import render_from_spec
+            out = render_from_spec(best_spec, args.output)
+            print(f"Auto-refinement complete! Best SVG saved to {out}")
+        else:
+            print(f"Rendering diagram spec {args.input} → {args.output}...")
+            out = render_from_json(args.input, args.output)
+            print(f"SVG saved to {out}")
 
     elif args.command == "vectorize":
         from techfig.engines.vectorize import vectorize_image, vectorize_with_preset
@@ -280,7 +300,6 @@ def main():
         try:
             out = create_animation(args.input, args.output, quality=args.quality, preview=args.preview)
             if isinstance(out, dict):
-                import json
                 print(f"Animation saved. Metadata:\n{json.dumps(out, indent=2)}")
             else:
                 print(f"Animation saved to {out}")
@@ -307,7 +326,6 @@ def main():
 
     elif args.command == "math-widget":
         from techfig.engines.interactive_math import create_math_widget
-        import json
         with open(args.input, "r") as f:
             spec = json.load(f)
         
@@ -323,7 +341,6 @@ def main():
 
     elif args.command == "diagram-anim":
         from techfig.engines.diagram_manim_bridge import render_diagram_animation
-        import json
         with open(args.input, "r") as f:
             spec = json.load(f)
         out_path = args.output if args.output.endswith(".mp4") else args.output + ".mp4"

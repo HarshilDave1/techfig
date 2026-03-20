@@ -393,3 +393,80 @@ def format_refinement_context(
             "Render again with render_from_spec()."
         ),
     }
+
+
+def auto_refine(
+    initial_spec: Dict[str, Any],
+    output_dir: str,
+    reference_image_path: Optional[str] = None,
+    max_rounds: int = 5,
+    model: str = "anthropic/claude-3-5-sonnet-20241022",
+) -> Dict[str, Any]:
+    """Run an autonomous autoresearch loop to iteratively improve a diagram spec.
+    
+    Args:
+        initial_spec: The starting JSON spec.
+        output_dir: Directory to save SVG iterations and log.
+        reference_image_path: Optional original image to guide the aesthetic critic.
+        max_rounds: Maximum number of mutation rounds.
+        model: LLM model to use for mutations.
+        
+    Returns:
+        The best JSON spec found.
+    """
+    from techfig.engines.autoresearch import AutoResearchLoop
+    from litellm import completion
+    import os
+
+    # Load the mutator program instructions
+    program_path = os.path.join(os.path.dirname(__file__), "program.md")
+    with open(program_path, "r") as f:
+        program_text = f.read()
+
+    def mutator_fn(current_spec: Dict[str, Any], feedback: str) -> Dict[str, Any]:
+        """The LLM agent that mutates the spec based on feedback."""
+        
+        user_prompt = f"""\
+Here is the current diagram spec:
+```json
+{json.dumps(current_spec, indent=2)}
+```
+
+Feedback on this spec:
+{feedback}
+
+Output ONLY the complete, updated valid JSON spec matching the required schema. Do not include markdown fences if possible, just the raw JSON.
+"""
+
+        messages = [
+            {"role": "system", "content": program_text},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        response = completion(
+            model=model,
+            messages=messages,
+            temperature=0.7  # Higher temp for mutation exploration
+        )
+        
+        res_text = response.choices[0].message.content
+        
+        # Safely extract
+        from techfig.engines.aesthetic_critic import extract_json_from_response
+        try:
+            return extract_json_from_response(res_text)
+        except Exception as e:
+            print(f"Failed to parse LLM mutator output: {e}\nRaw={res_text[:200]}")
+            # If it fails to parse, return the current config to fall back
+            return current_spec
+
+    loop = AutoResearchLoop(
+        initial_spec=initial_spec,
+        output_dir=output_dir,
+        reference_image_path=reference_image_path,
+        max_rounds=max_rounds,
+        vision_model=model
+    )
+    
+    best_spec = loop.run(mutator_fn)
+    return best_spec

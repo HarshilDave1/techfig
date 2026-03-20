@@ -2,7 +2,7 @@
 Date: 2026-03-17
 
 ## Idea: Autoresearch for Graphics
-Applying Karpathy's `autoresearch` logic (autonomous experimentation loop) to the `graphic_agent` pipeline.
+Applying Karpathy's `autoresearch` logic (autonomous experimentation loop) to the `graphic_agent` pipeline. https://github.com/karpathy/autoresearch
 
 ### The Loop
 1.  **Program/Directive:** "Improve the aesthetic of this schematic to match a high-fidelity 'NotebookLM' 3D-isometric look, while maintaining mathematical precision in alignment."

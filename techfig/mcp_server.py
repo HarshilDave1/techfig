@@ -146,6 +146,15 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "description": "Absolute path for the output SVG file.",
                     },
+                    "auto_refine": {
+                        "type": "boolean",
+                        "description": "Optional: set to True to run the autonomous visual refinement loop to perfect the diagram's layout and look.",
+                        "default": False,
+                    },
+                    "ref_image": {
+                        "type": "string",
+                        "description": "Optional: Absolute path to the original sketch image, for context in auto_refine.",
+                    },
                 },
                 "required": ["spec", "output_path"],
             },
@@ -371,8 +380,21 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             spec = arguments["spec"]
             if isinstance(spec, str):
                 spec = json.loads(spec)
-            out = render_from_spec(spec, arguments["output_path"])
-            return [TextContent(type="text", text=f"Diagram reconstructed and saved to {out}")]
+                
+            if arguments.get("auto_refine"):
+                from techfig.engines.sketch_interpreter import auto_refine
+                import os
+                best_spec = auto_refine(
+                    initial_spec=spec,
+                    output_dir=os.path.dirname(arguments["output_path"]) or ".",
+                    reference_image_path=arguments.get("ref_image"),
+                    max_rounds=5,
+                )
+                out = render_from_spec(best_spec, arguments["output_path"])
+                return [TextContent(type="text", text=f"Auto-refined diagram reconstructed and saved to {out}")]
+            else:
+                out = render_from_spec(spec, arguments["output_path"])
+                return [TextContent(type="text", text=f"Diagram reconstructed and saved to {out}")]
 
         elif name == "get_sketch_prompt":
             prompt = get_sketch_prompt()
