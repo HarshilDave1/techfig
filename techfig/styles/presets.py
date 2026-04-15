@@ -45,7 +45,7 @@ _COMMON_COLORS: Dict[str, str] = {
 
 NATURE_STYLE: Dict[str, Any] = {
     # Diagram-specific keys
-    "font_family": "Arial, Helvetica, sans-serif",
+    "font_family": "DejaVu Sans, Liberation Sans, sans-serif",
     "font_size": 7,
     "stroke_width": 0.75,
     "colors": dict(_COMMON_COLORS),
@@ -59,7 +59,7 @@ NATURE_STYLE: Dict[str, Any] = {
     "ytick.labelsize": 6,
     "legend.fontsize": 6,
     "font.family": "sans-serif",
-    "font.sans-serif": ["Arial", "Helvetica", "sans-serif"],
+    "font.sans-serif": ["DejaVu Sans", "Liberation Sans", "Noto Sans"],
     "lines.linewidth": 1.0,
     "axes.linewidth": 0.5,
     "grid.linewidth": 0.5,
@@ -116,9 +116,8 @@ OPTICA_STYLE: Dict[str, Any] = {
     "axes.titlesize": 10,
     "xtick.labelsize": 8,
     "ytick.labelsize": 8,
-    "legend.fontsize": 8,
     "font.family": "sans-serif",
-    "font.sans-serif": ["Arial", "Helvetica", "sans-serif"],
+    "font.sans-serif": ["DejaVu Sans", "Liberation Sans", "Noto Sans"],
     "lines.linewidth": 1.5,
     "colors": dict(_COMMON_COLORS),
 }
@@ -128,7 +127,7 @@ OPTICA_STYLE: Dict[str, Any] = {
 # - Font size: 10 pt
 SPIE_STYLE: Dict[str, Any] = {
     **IEEE_STYLE,
-    "font_family": "Arial, Helvetica, sans-serif",
+    "font_family": "DejaVu Sans, Liberation Sans, sans-serif",
     "font_size": 10,
     "figure.figsize": (3.4, 2.5),
     "font.size": 10,
@@ -136,9 +135,8 @@ SPIE_STYLE: Dict[str, Any] = {
     "axes.titlesize": 11,
     "xtick.labelsize": 9,
     "ytick.labelsize": 9,
-    "legend.fontsize": 9,
     "font.family": "sans-serif",
-    "font.sans-serif": ["Arial", "Helvetica", "sans-serif"],
+    "font.sans-serif": ["DejaVu Sans", "Liberation Sans", "Noto Sans"],
     "colors": dict(_COMMON_COLORS),
 }
 
@@ -183,7 +181,7 @@ PRESENTATION_STYLE: Dict[str, Any] = {
 
 MINIMAL_STYLE: Dict[str, Any] = {
     **NATURE_STYLE,
-    "font_family": "Helvetica Neue, Helvetica, Arial, sans-serif",
+    "font_family": "DejaVu Sans, Liberation Sans, sans-serif",
     "stroke_width": 0.75,
     "axes.linewidth": 0.5,
     "grid.linewidth": 0.25,
