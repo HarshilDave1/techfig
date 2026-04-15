@@ -39,3 +39,9 @@ output/
 *.png
 *.svg
 *.gif
+# Web demo (separate repo: techfig-web)
+web/
+DEPLOYMENT_PLAN.md
+
+# Agent Zero project files
+.a0proj/
