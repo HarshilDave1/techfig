@@ -92,6 +92,15 @@ def main():
     recon_p.add_argument("--pretty", action="store_true", help="Generate a stylized rendering using an AI image model")
     recon_p.add_argument("--pretty-model", default=cfg["pretty_model"], help="Model to use for --pretty rendering (e.g. vertex_ai/imagen-3.0-generate-001)")
 
+
+    # ---- critique --------------------------------------------------------
+    crit_p = subparsers.add_parser(
+        "critique",
+        help="Render a spec to SVG and run deterministic geometric critique (no LLM needed)",
+    )
+    crit_p.add_argument("--input", required=True, help="JSON file with diagram spec")
+    crit_p.add_argument("--svg-output", required=True, help="Output SVG file path")
+
     # ---- animate ---------------------------------------------------------
     anim_p = subparsers.add_parser(
         "animate",
@@ -332,6 +341,25 @@ def main():
             final_out = generate_pretty_image(out, pretty_out, model=args.pretty_model)
             print(f"Pretty rendering saved to {final_out}")
 
+    elif args.command == "critique":
+        from techfig.engines.autoresearch import critique_report
+        print(f"Critiquing {args.input} → {args.svg_output}...")
+        with open(args.input) as f:
+            spec = json.load(f)
+        report = critique_report(spec, args.svg_output)
+        # Print human-readable summary
+        print(f"\nScore: {report['score']:.3f}")
+        if report['issues']:
+            print(f"Issues ({len(report['issues'])}):")
+            for issue in report['issues']:
+                print(f"  - {issue}")
+        if report['suggestions']:
+            print(f"Suggestions:")
+            for s in report['suggestions']:
+                print(f"  → {s}")
+        # Also output JSON to stdout for programmatic use
+        print(f"\nJSON output:")
+        print(json.dumps({k: v for k, v in report.items() if k != 'spec'}, indent=2))
     elif args.command == "vectorize":
         from techfig.engines.vectorize import vectorize_image, vectorize_with_preset
         print(f"Vectorizing {args.input} -> {args.output}...")

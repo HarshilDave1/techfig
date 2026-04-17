@@ -1,8 +1,15 @@
 """Aesthetic Critic for evaluating the visual quality of rendered SVG diagrams.
 
-This module provides a scorer that leverages multimodal vision models (via LiteLLM)
-to evaluate the readability, professional appearance, and aesthetic quality of
-a rendered diagram, and to provide actionable feedback for the refinement loop.
+This module provides an **optional** scorer that leverages multimodal vision models
+(via LiteLLM) to evaluate readability, professional appearance, and aesthetic
+quality of a rendered diagram, providing actionable feedback for refinement.
+
+IMPORTANT: This module requires an API key (e.g. ANTHROPIC_API_KEY) and is
+entirely optional. The deterministic critique pipeline (see autoresearch.py)
+does NOT import or depend on this module.
+
+Agents can use render_to_png() as a standalone helper to convert SVG → PNG
+for their own visual review, independently of score_aesthetic().
 """
 
 import base64
@@ -11,7 +18,6 @@ import tempfile
 import json
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any
-from litellm import completion
 
 AESTHETIC_PROMPT = """\
 You are an expert graphic designer and technical illustrator. Your job is to
@@ -49,10 +55,19 @@ def extract_json_from_response(text: str) -> Dict[str, Any]:
     # Try parsing directly
     return json.loads(text.strip())
 
-def render_svg_to_png(svg_path: str, png_path: str) -> None:
+
+def render_to_png(svg_path: str, png_path: str) -> None:
     """Render an SVG to a PNG using Playwright.
-    
-    This avoids brittle C-dependencies like cairo on macOS/Windows.
+
+    This is a standalone helper that agents can use independently of
+    score_aesthetic(). Useful for converting SVG → PNG for visual review.
+
+    Args:
+        svg_path: Path to the source SVG file.
+        png_path: Path to write the output PNG file.
+
+    Raises:
+        RuntimeError: If Playwright is not installed or rendering fails.
     """
     from playwright.sync_api import sync_playwright
     
@@ -88,6 +103,11 @@ def score_aesthetic(
 ) -> Tuple[float, str]:
     """Score the aesthetic and visual quality of a rendered SVG diagram.
     
+    ⚠ OPTIONAL — requires an API key (e.g. ANTHROPIC_API_KEY).
+    The deterministic critique pipeline (autoresearch.critique_report) does
+    NOT use this function. Agents call this only when they have vision model
+    access and want a visual quality score.
+
     Args:
         svg_path: Path to the SVG file to evaluate.
         model: Multimodal LLM to use for vision scoring.
@@ -95,9 +115,10 @@ def score_aesthetic(
         
     Returns:
         (score, feedback_text)
-        Score is 0.0 to 10.0
+        Score is 0.0 to 1.0
     """
     import shutil
+    from litellm import completion
     
     svg_file = Path(svg_path)
     if not svg_file.exists():
@@ -112,7 +133,7 @@ def score_aesthetic(
         temp_png = temp_dir_path / "temp.png"
         
         try:
-            render_svg_to_png(str(temp_svg), str(temp_png))
+            render_to_png(str(temp_svg), str(temp_png))
         except Exception as e:
             return 0.0, f"Failed to render SVG to PNG for evaluation: {e}"
         

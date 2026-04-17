@@ -404,71 +404,106 @@ def auto_refine(
 ) -> Dict[str, Any]:
     """Run an autonomous autoresearch loop to iteratively improve a diagram spec.
     
+    Uses deterministic geo-linter scoring (no LLM needed for critique).
+    Optionally uses an LLM for mutation if a model is provided.
+
     Args:
         initial_spec: The starting JSON spec.
         output_dir: Directory to save SVG iterations and log.
-        reference_image_path: Optional original image to guide the aesthetic critic.
+        reference_image_path: Optional original image (unused in deterministic mode).
         max_rounds: Maximum number of mutation rounds.
-        model: LLM model to use for mutations.
+        model: LLM model to use for mutations. If empty string, uses rule-based mutation.
         
     Returns:
         The best JSON spec found.
     """
-    from techfig.engines.autoresearch import AutoResearchLoop
-    from litellm import completion
     import os
+    from techfig.engines.autoresearch import critique_report
+    from techfig.engines.geo_linter import snap_to_grid, align_rows_and_cols
+    from litellm import completion as litellm_completion
 
     # Load the mutator program instructions
     program_path = os.path.join(os.path.dirname(__file__), "program.md")
     with open(program_path, "r") as f:
         program_text = f.read()
 
-    def mutator_fn(current_spec: Dict[str, Any], feedback: str) -> Dict[str, Any]:
-        """The LLM agent that mutates the spec based on feedback."""
-        
-        user_prompt = f"""\
+    best_spec = copy.deepcopy(initial_spec)
+    svg_path = os.path.join(output_dir, "gen_0.svg")
+    report = critique_report(best_spec, svg_path)
+    best_score = report["score"]
+    last_feedback = "; ".join(report["issues"] + report["suggestions"])
+
+    # Write experiment log
+    log_data = [{"generation": 0, "score": best_score, "kept": True, "svg_path": svg_path}]
+
+    print(f"  Gen 0 | Geo score={best_score:.3f} | ★ BASELINE")
+
+    for gen in range(1, max_rounds + 1):
+        try:
+            if model:
+                # LLM-based mutation
+                user_prompt = f"""\
 Here is the current diagram spec:
 ```json
-{json.dumps(current_spec, indent=2)}
+{json.dumps(best_spec, indent=2)}
 ```
 
 Feedback on this spec:
-{feedback}
+{last_feedback}
 
 Output ONLY the complete, updated valid JSON spec matching the required schema. Do not include markdown fences if possible, just the raw JSON.
 """
+                messages = [
+                    {"role": "system", "content": program_text},
+                    {"role": "user", "content": user_prompt}
+                ]
+                response = litellm_completion(
+                    model=model,
+                    messages=messages,
+                    temperature=0.7
+                )
+                res_text = response.choices[0].message.content
 
-        messages = [
-            {"role": "system", "content": program_text},
-            {"role": "user", "content": user_prompt}
-        ]
+                from techfig.engines.aesthetic_critic import extract_json_from_response
+                try:
+                    candidate = extract_json_from_response(res_text)
+                except Exception as e:
+                    print(f"  Gen {gen} | Failed to parse LLM mutator output: {e}")
+                    continue
+            else:
+                # Rule-based mutation
+                candidate = snap_to_grid(best_spec, grid_size=10.0)
+                candidate = align_rows_and_cols(candidate, tolerance=25.0)
 
-        response = completion(
-            model=model,
-            messages=messages,
-            temperature=0.7  # Higher temp for mutation exploration
-        )
-        
-        res_text = response.choices[0].message.content
-        
-        # Safely extract
-        from techfig.engines.aesthetic_critic import extract_json_from_response
-        try:
-            return extract_json_from_response(res_text)
+            c_svg_path = os.path.join(output_dir, f"gen_{gen}.svg")
+            c_report = critique_report(candidate, c_svg_path)
+            c_score = c_report["score"]
+
+            kept = c_score > best_score
+            if kept:
+                best_spec = candidate
+                best_score = c_score
+                last_feedback = "; ".join(c_report["issues"] + c_report["suggestions"])
+                mark = "✓ KEPT"
+            else:
+                last_feedback = (
+                    f"PREVIOUS MUTATION REJECTED (Score {c_score:.3f} not > {best_score:.3f}). "
+                    f"Issues: {'; '.join(c_report['issues'])}. Try a DIFFERENT approach."
+                )
+                mark = "✗ REJECT"
+
+            log_data.append({"generation": gen, "score": round(c_score, 4), "kept": kept, "svg_path": c_svg_path})
+            print(f"  Gen {gen} | Geo score={c_score:.3f} | {mark}")
+
         except Exception as e:
-            print(f"Failed to parse LLM mutator output: {e}\nRaw={res_text[:200]}")
-            # If it fails to parse, return the current config to fall back
-            return current_spec
+            print(f"  Gen {gen} | ERROR: {e}")
 
-    loop = AutoResearchLoop(
-        initial_spec=initial_spec,
-        output_dir=output_dir,
-        reference_image_path=reference_image_path,
-        max_rounds=max_rounds,
-        vision_model=model
-    )
-    
-    best_spec = loop.run(mutator_fn)
+    # Write experiment log
+    log_path = os.path.join(output_dir, "experiment_log.json")
+    with open(log_path, "w") as f:
+        json.dump(log_data, f, indent=2)
+
+    print(f"\n  Best score: {best_score:.3f}")
     return best_spec
 
 

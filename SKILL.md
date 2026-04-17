@@ -100,3 +100,43 @@ See the `examples/` directory for working samples:
 2. **No AI dependency in engines** — All engines are pure Python; the AI layer is optional
 3. **Colorblind-safe palettes** — All built-in styles use accessible color schemes
 4. **Fallback backends** — SVG conversion tries cairosvg → rsvg-convert → inkscape
+
+## Self-Improvement Loop (Agent-Driven)
+
+The self-improvement loop is **agent-driven**, not hardcoded. The agent (not techfig)
+is the critic and orchestrator. Techfig provides only deterministic tools:
+
+1. **Generate initial figure:** `techfig reconstruct --input spec.json -o v1.svg`
+2. **Get deterministic critique:** `techfig critique --input spec.json --svg-output v1.svg`
+3. **Agent reviews the SVG visually** (using vision tools) **and reads the critique report**
+4. **Agent modifies the spec.json** based on the feedback
+5. **Re-generate:** `techfig reconstruct --input spec.json -o v2.svg`
+6. **Repeat** until satisfied
+
+### Programmatic API
+
+```python
+from techfig.engines.autoresearch import critique_report
+import json
+
+spec = json.load(open("spec.json"))
+report = critique_report(spec, "output.svg")
+print(f"Score: {report['score']}")
+print(f"Issues: {report['issues']}")
+print(f"Suggestions: {report['suggestions']}")
+```
+
+### Optional: Vision-Based Aesthetic Scoring
+
+If an API key is available (e.g. `ANTHROPIC_API_KEY`), the aesthetic critic
+remains available for optional visual quality scoring:
+
+```python
+from techfig.engines.aesthetic_critic import score_aesthetic, render_to_png
+
+# Convert SVG to PNG for visual review
+render_to_png("diagram.svg", "diagram.png")
+
+# Score with a vision model (requires API key)
+score, feedback = score_aesthetic("diagram.svg")
+```
