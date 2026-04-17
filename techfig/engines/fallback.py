@@ -6,8 +6,12 @@ try:
     import schemdraw.elements as elm
 except ImportError:
     elm = None
-from google import genai
-from google.genai import types
+try:
+    from google import genai
+    from google.genai import types
+except ImportError:
+    genai = None
+    types = None
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +54,14 @@ def generate_component(name: str) -> Optional[Type[Any]]:
         logger.warning(
             "GEMINI_API_KEY environment variable not set. "
             "Cannot use agentic fallback for component generation."
+        )
+        return None
+
+    if genai is None or types is None:
+        logger.warning(
+            "google-genai package not installed. "
+            "Cannot use agentic fallback for component generation. "
+            "Install with: pip install google-genai"
         )
         return None
         

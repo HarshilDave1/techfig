@@ -2,6 +2,9 @@ import pytest
 import os
 import tempfile
 import json
+
+plotly = pytest.importorskip("plotly", reason="plotly required for interactive chart tests")
+
 from techfig.engines.interactive import create_interactive_chart
 
 

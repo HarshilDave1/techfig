@@ -4,17 +4,17 @@ build-backend = "hatchling.build"
 
 [project]
 name = "techfig"
-version = "0.2.0"
-description = "AI-assisted toolkit for scientists to create publication-quality figures, editable SVG diagrams, and PowerPoint presentations."
+version = "1.0.0"
+description = "CLI toolkit for scientists to create publication-quality figures, editable SVG diagrams, and PowerPoint presentations."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
     { name = "Harshil" },
 ]
-keywords = ["scientific", "figures", "diagrams", "svg", "powerpoint", "visualization", "mcp"]
+keywords = ["scientific", "figures", "diagrams", "svg", "powerpoint", "visualization", "cli"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Visualization",
     "License :: OSI Approved :: MIT License",
@@ -37,24 +37,27 @@ dependencies = [
     "cairosvg>=2.9.0",
     "pillow>=12.1.1",
     "playwright>=1.58.0",
-    "fastapi>=0.135.1",
-    "uvicorn[standard]>=0.41.0",
-    "python-multipart>=0.0.22",
 ]
 
 [project.optional-dependencies]
-mcp = ["mcp>=1.0"]
+web = [
+    "fastapi>=0.135.1",
+    "uvicorn[standard]>=0.41.0",
+    "python-multipart>=0.0.22",
+    "mcp>=1.0",
+]
+genai = ["google-genai>=1.0"]
+interactive = ["plotly>=5.18"]
 animation = ["manim>=0.18"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=4.0",
     "ruff>=0.4",
 ]
-all = ["techfig[mcp,dev]"]
+all = ["techfig[web,genai,interactive,dev]"]
 
 [project.scripts]
 techfig = "techfig.cli:main"
-techfig-mcp = "techfig.mcp_server:main"
 
 [project.urls]
 Homepage = "https://github.com/harshil/techfig"

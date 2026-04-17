@@ -45,3 +45,14 @@ DEPLOYMENT_PLAN.md
 
 # Agent Zero project files
 .a0proj/
+
+# Build artifacts
+dist/
+*.whl
+
+# Large binary files
+Miniconda3-latest-MacOSX-arm64.sh
+*.sh
+
+# Quality gating experiment logs
+tests/experiment_log.json
