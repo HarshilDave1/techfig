@@ -7,6 +7,22 @@ description: Create publication-quality figures, editable SVG diagrams, PowerPoi
 
 You are a technical visualization assistant. You generate **code that generates graphics** — not pixels. All outputs are editable (SVG, .pptx, .tex).
 
+## Quick Reference
+
+| Task | Command | Key Flags |
+|------|---------|----------|
+| Bar/line/scatter chart | `techfig chart` | `--data`, `--type`, `--style`, `-o` |
+| Flowchart/diagram | `techfig diagram` | `--input`, `-o` |
+| Reconstruct from vision spec | `techfig reconstruct` | `--input`, `-o` |
+| Image → vector SVG | `techfig vectorize` | input file, `--preset`, `-o` |
+| LaTeX/TikZ export | `techfig tikz` | `--mode`, `--data`, `--chart-type`, `-o` |
+| PowerPoint slides | `techfig slides` | `--input`, `-o` |
+| Batch generate | `techfig batch` | `--input` |
+| Critique & score | `techfig critique` | `--input`, `--svg-output` |
+| List styles | `techfig styles` | — |
+
+**Always use `-o <output_file>` to specify the output path.**
+
 ## What You Can Do
 
 | Capability | Tool | Output |
@@ -20,29 +36,19 @@ You are a technical visualization assistant. You generate **code that generates 
 | Format conversion | `export_figure` | SVG → PNG, SVG → PDF |
 | Batch generation | `batch_generate` | Process a YAML manifest to generate all figures at once |
 
-## How to Use
+## CLI Usage
 
-### MCP Server (recommended for LLM assistants)
-
-Add to your MCP config:
-```json
-{
-  "mcpServers": {
-    "techfig": {
-      "command": "techfig-mcp"
-    }
-  }
-}
-```
-
-### CLI Usage
+**Every command uses `-o <output>` to set the output file path.**
 
 ```bash
-# Chart from CSV data
+# Chart from CSV data — always specify -o
 techfig chart --data results.csv --type bar --style nature -o fig1.svg
 
 # Diagram from JSON spec
 techfig diagram --input nodes_edges.json -o flow.svg
+
+# Reconstruct diagram from vision spec
+techfig reconstruct --input spec.json -o diagram.svg
 
 # Slides from JSON
 techfig slides --input outline.json -o talk.pptx
@@ -55,6 +61,9 @@ techfig tikz --mode chart --data results.csv --chart-type line -o fig.tex
 
 # Batch: generate everything from a manifest
 techfig batch --input manifest.yaml
+
+# Critique a generated figure (agent-driven self-improvement)
+techfig critique --input spec.json --svg-output diagram.svg
 
 # List available styles
 techfig styles
@@ -83,6 +92,23 @@ Charts accept data as:
 - Excel file path (`data.xlsx`)
 - JSON file path or inline JSON string
 - pandas DataFrame (when using Python API directly)
+
+## Error Handling & Troubleshooting
+
+**If a command fails:**
+
+1. **Check the error message** — techfig returns clear error text
+2. **Verify file paths exist** — `--data` and `--input` files must be present
+3. **Check chart type** — valid types: `bar`, `line`, `scatter`, `box`, `histogram`, `heatmap`
+4. **Check style name** — run `techfig styles` to see available presets
+5. **Try minimal style first** — `--style minimal` has fewer dependencies
+6. **SVG conversion fallback** — tries cairosvg → rsvg-convert → inkscape automatically
+
+**Common issues:**
+- `FileNotFoundError` → check that input file exists at the given path
+- `ValueError: invalid chart type` → use one of the 6 valid types above
+- `cairosvg not found` → install with `pip install cairosvg` or use `--format png`
+- Grid alignment warnings → use `techfig critique` to get a score and fix suggestions
 
 ## Examples
 
