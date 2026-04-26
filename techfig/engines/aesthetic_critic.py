@@ -189,6 +189,6 @@ def score_aesthetic(
             score = float(data.get("score", 0.5))
             feedback = str(data.get("feedback", "No feedback provided."))
             return max(0.0, min(1.0, score)), feedback
-        except (json.JSONDecodeError, ValueError) as e:
+        except (json.JSONDecodeError, ValueError):
             # Fallback if model doesn't return proper JSON
             return 0.5, f"Warning: Failed to parse aesthetic feedback. Raw response: {res_text}"

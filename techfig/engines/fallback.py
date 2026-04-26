@@ -1,7 +1,6 @@
 import os
-import json
 import logging
-from typing import Optional, Dict, Any, Type
+from typing import Optional, Any, Type
 try:
     import schemdraw.elements as elm
 except ImportError:

@@ -6,8 +6,6 @@ scientific diagrams easier, with built-in styling and layout helpers.
 Supported shapes: box, circle, diamond, ellipse, triangle, line, text.
 All shapes accept optional styling: stroke_dash, fill_opacity, rotation.
 """
-import math
-import re
 from typing import Dict, Any, Optional, Tuple
 
 import drawsvg as draw

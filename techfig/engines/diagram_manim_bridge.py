@@ -36,10 +36,9 @@ Usage example:
     }
 """
 import os
-import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -217,14 +216,14 @@ def _build_title_code(title: str, subtitle: str, palette: Dict[str, str]) -> str
     sub_color = palette.get("neutral", "#888888")
     lines = [
         f"        _title = Text('{title}', font_size=32, color=ManimColor('{txt_color}'))",
-        f"        _title.to_edge(UP, buff=0.3)",
-        f"        self.add(_title)",
+        "        _title.to_edge(UP, buff=0.3)",
+        "        self.add(_title)",
     ]
     if subtitle:
         lines += [
             f"        _sub = Text('{subtitle}', font_size=20, color=ManimColor('{sub_color}'))",
-            f"        _sub.next_to(_title, DOWN, buff=0.1)",
-            f"        self.add(_sub)",
+            "        _sub.next_to(_title, DOWN, buff=0.1)",
+            "        self.add(_sub)",
         ]
     return "\n".join(lines)
 
@@ -243,7 +242,7 @@ def _build_anim_code(elements: List[Dict], animation_type: str) -> str:
             cap = next((e.get("caption", "") for e in elements if e.get("id") == eid), "")
             lines.append(f"        self.play(FadeIn(mobs['{eid}']), run_time=0.7)")
             if cap:
-                lines.append(f"        self.wait(0.4)")
+                lines.append("        self.wait(0.4)")
 
     elif animation_type == "grouped":
         groups: Dict[int, List[str]] = {}
@@ -362,7 +361,6 @@ def render_diagram_animation(
     """
     try:
         import manim  # noqa: F401
-        from manim import config as manim_config
     except ImportError:
         raise ImportError(
             "Manim is not installed. Install it with:\n"

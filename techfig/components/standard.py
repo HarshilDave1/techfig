@@ -7,7 +7,7 @@ Components are organized by category and can be rendered to SVG.
 """
 from __future__ import annotations
 
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 from pathlib import Path
 import tempfile
 
@@ -260,15 +260,9 @@ def create_circuit(
             element_map[comp["id"]] = element
             d += element
 
-        # Process connections (schemdraw handles this through element chaining)
-        for conn in connections:
-            from_elem = element_map.get(conn["from"])
-            to_elem = element_map.get(conn["to"])
-
-            if from_elem and to_elem:
-                direction = conn.get("direction", "right")
-                # Note: schemdraw handles connections through element placement
-                # This is simplified - more complex routing would need additional logic
+        # Schemdraw handles connections through element placement. Connection
+        # metadata is accepted for API consistency, but direct routing is not
+        # implemented in this simplified renderer yet.
 
     return output_path
 

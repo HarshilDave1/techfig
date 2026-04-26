@@ -12,7 +12,6 @@ Features:
 from __future__ import annotations
 
 import json
-import hashlib
 import re
 from datetime import datetime
 from pathlib import Path

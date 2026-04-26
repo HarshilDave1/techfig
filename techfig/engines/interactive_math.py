@@ -7,7 +7,7 @@ via sliders or inputs.
 import logging
 import json
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 

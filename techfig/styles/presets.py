@@ -10,7 +10,7 @@ to matplotlib figures or SVG diagrams.  Each preset contains:
 import logging
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 

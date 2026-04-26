@@ -7,7 +7,6 @@ system like Manim or ffmpeg.
 import logging
 import re
 from pathlib import Path
-from typing import Optional, List
 import xml.etree.ElementTree as ET
 
 logger = logging.getLogger(__name__)

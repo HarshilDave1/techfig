@@ -1,6 +1,6 @@
 import os
 import json
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, Union
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -15,7 +15,6 @@ except ImportError:
     # Allow importing engine for CLI help even if manim is missing
     Scene = object
 
-from techfig.utils.data_loader import load_data
 
 class DiagramScene(Scene):
     def __init__(self, spec: Dict[str, Any], **kwargs):
@@ -86,7 +85,7 @@ class DiagramScene(Scene):
 
 def _create_manim_animation(spec: dict, output_path: str, quality: str = "l", preview: bool = False):
     try:
-        import manim
+        import manim  # noqa: F401
     except ImportError:
         raise ImportError("Manim is not installed. Please install it using `pip install manim`.")
 
@@ -106,12 +105,6 @@ def _create_manim_animation(spec: dict, output_path: str, quality: str = "l", pr
     
     import shutil
     import glob
-    videos_dir = os.path.join(config.media_dir, "videos", "1080p60")
-    if quality == "l":
-        videos_dir = os.path.join(config.media_dir, "videos", "480p15")
-    elif quality == "m":
-        videos_dir = os.path.join(config.media_dir, "videos", "720p30")
-        
     search_pattern = os.path.join(config.media_dir, "videos", "**", "*.mp4")
     generated_files = glob.glob(search_pattern, recursive=True)
     
@@ -271,7 +264,7 @@ def _create_physics_animation(spec: dict, output_path: str, fps: int = 30):
             for line, (trace, _, _) in zip(lines, traces):
                 line.set_data([], [])
                 trace.set_data([], [])
-            return [l for l in lines] + [t[0] for t in traces]
+            return [artist for artist in lines] + [t[0] for t in traces]
             
         def update(i):
             pos = [r1[:, i], r2[:, i], r3[:, i]]
@@ -285,7 +278,7 @@ def _create_physics_animation(spec: dict, output_path: str, fps: int = 30):
                 line.set_data([pos[j][0]], [pos[j][1]])
                 trace.set_data(tx, ty)
             
-            return [l for l in lines] + [t[0] for t in traces]
+            return [artist for artist in lines] + [t[0] for t in traces]
             
         anim = animation.FuncAnimation(fig, update, frames=len(t_eval),
                                       init_func=init, blit=True, interval=1000/fps)

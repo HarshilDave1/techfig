@@ -1,4 +1,3 @@
-import os
 import litellm
 from pathlib import Path
 from techfig.utils.export import convert_format

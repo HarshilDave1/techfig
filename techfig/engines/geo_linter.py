@@ -4,7 +4,7 @@ This module provides tools to score a JSON diagram spec on geometric precision
 (alignment, uniformity, grid adherence) and apply automatic corrections.
 """
 
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List
 from dataclasses import dataclass
 import copy
 

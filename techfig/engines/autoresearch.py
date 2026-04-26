@@ -9,9 +9,7 @@ reviews the output (and optionally the SVG visually), modifies the spec, and
 repeats until satisfied.
 """
 
-import json
-import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from dataclasses import dataclass, field
 
 from techfig.engines.geo_linter import lint_spec
