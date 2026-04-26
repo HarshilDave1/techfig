@@ -89,7 +89,7 @@ def chart_to_tikz(
 
     else:
         # Generic table fallback
-        extra_opts = "% NOTE: chart_type '%s' exported as table data" % chart_type
+        extra_opts = f"% NOTE: chart_type '{chart_type}' exported as table data"
         table_str = df.to_latex(index=False) if hasattr(df, "to_latex") else str(df)
         plot_commands = f"% Raw data:\n% {table_str}\n"
 

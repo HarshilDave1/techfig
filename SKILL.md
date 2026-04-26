@@ -1,6 +1,6 @@
 ---
 name: techfig
-description: Create publication-quality figures, editable SVG diagrams, PowerPoint presentations, and LaTeX/TikZ exports from data and structured descriptions. Converts raster images to vector SVGs.
+description: Create publication-quality figures, editable SVG diagrams, PowerPoint presentations, and LaTeX/TikZ exports from data and structured descriptions.
 ---
 
 # TechFig — Technical Graphic Agent Skill
@@ -13,8 +13,7 @@ You are a technical visualization assistant. You generate **code that generates 
 |------|---------|----------|
 | Bar/line/scatter chart | `techfig chart` | `--data`, `--type`, `--style`, `-o` |
 | Flowchart/diagram | `techfig diagram` | `--input`, `-o` |
-| Reconstruct from vision spec | `techfig reconstruct` | `--input`, `-o` |
-| Image → vector SVG | `techfig vectorize` | input file, `--preset`, `-o` |
+| Reconstruct from vision spec | `techfig reconstruct` | input file, `-o` |
 | LaTeX/TikZ export | `techfig tikz` | `--mode`, `--data`, `--chart-type`, `-o` |
 | PowerPoint slides | `techfig slides` | `--input`, `-o` |
 | Batch generate | `techfig batch` | `--input` |
@@ -32,7 +31,6 @@ You are a technical visualization assistant. You generate **code that generates 
 | Diagram Reconstruction | `reconstruct_diagram` | SVG (from LLM vision specs), supports `pretty` 3D rendering |
 | Presentations | `create_slides` | .pptx with speaker notes and embedded figures |
 | LaTeX export | `export_tikz` | .tex files using pgfplots/TikZ |
-| Image → Vector | `vectorize_image` | Editable SVG from any raster image (PNG/JPG/BMP) |
 | Format conversion | `export_figure` | SVG → PNG, SVG → PDF |
 | Batch generation | `batch_generate` | Process a YAML manifest to generate all figures at once |
 
@@ -48,13 +46,10 @@ techfig chart --data results.csv --type bar --style nature -o fig1.svg
 techfig diagram --input nodes_edges.json -o flow.svg
 
 # Reconstruct diagram from vision spec
-techfig reconstruct --input spec.json -o diagram.svg
+techfig reconstruct spec.json -o diagram.svg
 
 # Slides from JSON
 techfig slides --input outline.json -o talk.pptx
-
-# Convert raster image to editable SVG
-techfig vectorize photo.png -o vector.svg --preset sketch
 
 # LaTeX/TikZ export for papers
 techfig tikz --mode chart --data results.csv --chart-type line -o fig.tex
@@ -77,13 +72,6 @@ techfig styles
 - **presentation** — Large fonts, low DPI, clean
 - **minimal** — No grid, light aesthetic
 - Custom `.yaml` files are also supported
-
-## Vectorization Presets
-
-- **detailed** — High-fidelity color tracing with smooth curves
-- **simplified** — Fewer colors, cleaner shapes
-- **sketch** — Black & white (for hand-drawn sketches)
-- **logo** — Very few colors, bold shapes (icons/logos)
 
 ## Data Input Formats
 
@@ -117,7 +105,6 @@ See the `examples/` directory for working samples:
 - `examples/make_chart.py` — generate a chart from CSV
 - `examples/make_diagram.py` — generate a flowchart SVG
 - `examples/make_slides.py` — generate a presentation
-- `examples/vectorize_image.py` — convert a PNG to vector SVG
 - `examples/batch_manifest.yaml` — batch generation manifest
 
 ## Key Design Decisions
@@ -132,11 +119,11 @@ See the `examples/` directory for working samples:
 The self-improvement loop is **agent-driven**, not hardcoded. The agent (not techfig)
 is the critic and orchestrator. Techfig provides only deterministic tools:
 
-1. **Generate initial figure:** `techfig reconstruct --input spec.json -o v1.svg`
+1. **Generate initial figure:** `techfig reconstruct spec.json -o v1.svg`
 2. **Get deterministic critique:** `techfig critique --input spec.json --svg-output v1.svg`
 3. **Agent reviews the SVG visually** (using vision tools) **and reads the critique report**
 4. **Agent modifies the spec.json** based on the feedback
-5. **Re-generate:** `techfig reconstruct --input spec.json -o v2.svg`
+5. **Re-generate:** `techfig reconstruct spec.json -o v2.svg`
 6. **Repeat** until satisfied
 
 ### Programmatic API

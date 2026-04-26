@@ -30,7 +30,6 @@ dependencies = [
     "openpyxl>=3.1",
     "pyyaml>=6.0",
     "svg2png>=1.2",
-    "vtracer>=0.6",
     "schemdraw>=0.22",
     "scipy>=1.10",
     "litellm>=1.82.4",
@@ -44,7 +43,6 @@ web = [
     "fastapi>=0.135.1",
     "uvicorn[standard]>=0.41.0",
     "python-multipart>=0.0.22",
-    "mcp>=1.0",
 ]
 genai = ["google-genai>=1.0"]
 interactive = ["plotly>=5.18"]
@@ -68,3 +66,13 @@ line-length = 100
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/.a0proj",
+    "/.agents",
+    "/.codex",
+    "/.venv",
+    "/dist",
+    "/output",
+]

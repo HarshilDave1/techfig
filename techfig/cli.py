@@ -8,7 +8,7 @@ from techfig.engines.diagrams import create_flowchart
 from techfig.engines.slides import create_presentation
 from techfig.engines.tikz_export import chart_to_tikz, diagram_to_tikz
 from techfig.engines.batch import batch_generate
-from techfig.engines.sketch_interpreter import render_from_json, get_sketch_prompt, sketch_to_diagram
+from techfig.engines.sketch_interpreter import render_from_json, get_sketch_prompt
 from techfig.utils.export import convert_format
 from techfig.styles.presets import get_available_styles
 from techfig.utils.config import load_config, set_config_val
@@ -354,25 +354,12 @@ def main():
             for issue in report['issues']:
                 print(f"  - {issue}")
         if report['suggestions']:
-            print(f"Suggestions:")
+            print("Suggestions:")
             for s in report['suggestions']:
                 print(f"  → {s}")
         # Also output JSON to stdout for programmatic use
-        print(f"\nJSON output:")
+        print("\nJSON output:")
         print(json.dumps({k: v for k, v in report.items() if k != 'spec'}, indent=2))
-    elif args.command == "vectorize":
-        from techfig.engines.vectorize import vectorize_image, vectorize_with_preset
-        print(f"Vectorizing {args.input} -> {args.output}...")
-        if args.preset:
-            out = vectorize_with_preset(args.input, args.output, preset=args.preset)
-        else:
-            out = vectorize_image(
-                args.input, args.output,
-                color_mode=args.color_mode,
-                color_precision=args.color_precision,
-            )
-        print(f"SVG saved to {out}")
-
     elif args.command == "animate":
         from techfig.engines.animations import create_animation
         print(f"Rendering Manim animation {args.input} -> {args.output}...")

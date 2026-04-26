@@ -45,6 +45,7 @@ DEPLOYMENT_PLAN.md
 
 # Agent Zero project files
 .a0proj/
+.agents
 
 # Build artifacts
 dist/

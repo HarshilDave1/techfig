@@ -15,7 +15,7 @@ TechFig is a **code-first visualization toolkit** designed for researchers and s
 ## Architecture
 
 ```
-Engine Layer (pure Python, no AI)  →  Agent Layer (LLM tools)  →  Adapters (MCP, CLI)
+Engine Layer (pure Python, no AI)  →  Agent Layer (LLM workflow)  →  CLI
 ```
 
 The core engines have zero AI dependency — they're just Python functions that take structured input and produce output files. The AI layer translates natural language into structured calls.
@@ -33,16 +33,10 @@ Image → LLM Vision (with sketch prompt) → JSON spec → Diagram Engine → e
 
 ```bash
 pip install techfig              # base (charts, diagrams, slides, TikZ)
-pip install "techfig[mcp]"       # + MCP server for Claude/Cursor/Antigravity
+pip install "techfig[interactive]" # + Plotly interactive charts
 pip install "techfig[animation]" # + Matplotlib physics animations
 
 # For Manim diagram animations, system dependencies (Cairo, FFMPEG) are required.
-# We recommend using Conda:
-### Installation
-
-```bash
-pip install techfig
-pip install "techfig[mcp]"  # Optional: install MCP server support
 ```
 
 *For developers, you can also clone and use `uv`:*
@@ -85,26 +79,7 @@ techfig batch --input manifest.yaml
 
 # List style presets
 techfig styles
-
-# MCP server (for Claude Desktop, Cursor, Antigravity, etc.)
-techfig-mcp
 ```
-
-## MCP Server
-
-Add to your assistant's MCP config:
-
-```json
-{
-  "mcpServers": {
-    "techfig": {
-      "command": "techfig-mcp"
-    }
-  }
-}
-```
-
-**Available tools:** `create_chart`, `create_diagram`, `reconstruct_diagram` (supports `pretty` rendering mode), `get_sketch_prompt`, `create_slides`, `export_tikz`, `export_figure`, `list_styles`, `batch_generate`
 
 ## Styles
 

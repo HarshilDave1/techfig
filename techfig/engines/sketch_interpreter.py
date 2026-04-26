@@ -318,7 +318,7 @@ def render_from_spec(
     """
     issues = validate_spec(spec)
     if issues:
-        raise ValueError(f"Invalid diagram spec:\n" + "\n".join(f"  - {i}" for i in issues))
+        raise ValueError("Invalid diagram spec:\n" + "\n".join(f"  - {i}" for i in issues))
 
     canvas = spec.get("canvas", {})
     width = canvas.get("width", 1200)
@@ -423,10 +423,14 @@ def auto_refine(
     from techfig.engines.geo_linter import snap_to_grid, align_rows_and_cols
     from litellm import completion as litellm_completion
 
-    # Load the mutator program instructions
-    program_path = os.path.join(os.path.dirname(__file__), "program.md")
-    with open(program_path, "r") as f:
-        program_text = f.read()
+    program_text = """You are an autonomous diagram improvement agent.
+
+Your goal is to maximize the geometric and aesthetic quality score of a
+diagram specification. Modify only the JSON diagram specification. Make one
+targeted fix per round. Prioritize layout fixes when geometric score is low;
+prioritize colors, opacity, and shape choices when aesthetic score is low. If
+the previous mutation was rejected, try a different approach.
+"""
 
     best_spec = copy.deepcopy(initial_spec)
     svg_path = os.path.join(output_dir, "gen_0.svg")
@@ -580,4 +584,3 @@ def sketch_to_diagram(
     # 5. Render
     print(f"Rendering SVG to {output_path}...")
     return render_from_spec(spec, output_path)
-
