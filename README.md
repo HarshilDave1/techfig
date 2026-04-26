@@ -68,8 +68,6 @@ techfig reconstruct spec.json -o diagram.svg
 
 # Start from built-in templates for inspiration!
 techfig reconstruct techfig/templates/optical_bench.json -o optical_bench.svg --pretty
-
-
 # Reconstruct a diagram and generate a "pretty" 3D image using an AI model
 techfig reconstruct spec.json -o diagram.svg --pretty --pretty-model openai/dall-e-3
 
@@ -124,5 +122,3 @@ See the `examples/` directory for working scripts, sample data, and the `optical
 pip install -e ".[dev]"
 pytest tests/ -v
 ```
-
-See [PLAN.md](PLAN.md) for the full roadmap.

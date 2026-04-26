@@ -127,12 +127,12 @@ def lint_spec(spec: Dict[str, Any], grid_size: float = 20.0, align_tolerance: fl
             if k in el and _is_numeric(el[k]):
                 total_checks += 1
                 val = float(el[k])
-                remainder = val % grid_size
-                # Allow being exactly on grid
-                if remainder > 1e-5 and (grid_size - remainder) > 1e-5:
+                # Use epsilon-based check to avoid floating point precision issues with modulo
+                snapped = round(val / grid_size) * grid_size
+                dist = abs(val - snapped)
+                if dist > 1e-5:
                     failed_grid_checks += 1
-                    dist = min(remainder, grid_size - remainder)
-                    if dist > 2: # Only complain if visibly off-grid
+                    if dist > 2:  # Only complain if visibly off-grid
                         grid_issues.append(f"Element '{el_id}' {k}={val} is not aligned to {grid_size}px grid")
                         
     # Check alignment (almost aligned but not quite)

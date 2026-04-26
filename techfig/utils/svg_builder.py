@@ -108,24 +108,47 @@ class SVGBuilder:
     def _text_color(self) -> str:
         return str(self.style.get("colors", {}).get("text", "#000000"))
 
-    def _extract_style_kwargs(self, kwargs: dict, default_fill_opacity: float = DEFAULT_FILL_OPACITY) -> dict:
-        """Pop custom style keys from kwargs and return SVG-compatible attrs.
+    def _extract_style_kwargs(self, kwargs: dict, default_fill_opacity: float = DEFAULT_FILL_OPACITY) -> tuple[dict, dict]:
+        """Extract custom style keys from kwargs and return (style_attrs, cleaned_kwargs).
 
+        Makes a shallow copy of kwargs internally so the caller's dict is not mutated.
+        Style keys are removed from the returned cleaned_kwargs so they do not
+        conflict when passed alongside style_attrs to drawsvg functions.
+
+        If no ``fill_opacity`` is provided, the default (0.15) is applied
+        so shapes get a light pastel fill with a solid stroke border.
+        Pass ``default_fill_opacity=-1`` to suppress the default (e.g. for text/lines).
+        """
+        kw = dict(kwargs)  # shallow copy — do not mutate caller's dict
+        out: dict = {}
+        if "stroke_dash" in kw:
+            out["stroke_dasharray"] = kw.pop("stroke_dash")
+        if "fill_opacity" in kw:
+            out["fill_opacity"] = kw.pop("fill_opacity")
+        elif default_fill_opacity >= 0:
+            out["fill_opacity"] = default_fill_opacity
+        if "stroke_opacity" in kw:
+            out["stroke_opacity"] = kw.pop("stroke_opacity")
+        # rotation handled separately via transform
+        kw.pop("rotation", None)
+        return out, kw
+        """Extract custom style keys from kwargs and return SVG-compatible attrs.
+
+        Returns a new dict with SVG style attrs without mutating the input kwargs.
         If no ``fill_opacity`` is provided, the default (0.15) is applied
         so shapes get a light pastel fill with a solid stroke border.
         Pass ``default_fill_opacity=-1`` to suppress the default (e.g. for text/lines).
         """
         out: dict = {}
         if "stroke_dash" in kwargs:
-            out["stroke_dasharray"] = kwargs.pop("stroke_dash")
+            out["stroke_dasharray"] = kwargs["stroke_dash"]
         if "fill_opacity" in kwargs:
-            out["fill_opacity"] = kwargs.pop("fill_opacity")
+            out["fill_opacity"] = kwargs["fill_opacity"]
         elif default_fill_opacity >= 0:
             out["fill_opacity"] = default_fill_opacity
         if "stroke_opacity" in kwargs:
-            out["stroke_opacity"] = kwargs.pop("stroke_opacity")
-        # rotation handled separately via transform
-        kwargs.pop("rotation", None)
+            out["stroke_opacity"] = kwargs["stroke_opacity"]
+        # rotation handled separately via transform (not an SVG attr here)
         return out
 
     # --- shapes ---------------------------------------------------------
@@ -140,7 +163,7 @@ class SVGBuilder:
         """Add a labeled rectangular node."""
         rotation = kwargs.get("rotation", 0)
         fill = self._resolve_color(color)
-        style_attrs = self._extract_style_kwargs(kwargs)
+        style_attrs, kwargs = self._extract_style_kwargs(kwargs)
         group = draw.Group(id=element_id) if element_id else draw.Group()
 
         rect = draw.Rectangle(
@@ -177,7 +200,7 @@ class SVGBuilder:
         """Add a labeled circular node."""
         rotation = kwargs.get("rotation", 0)
         fill = self._resolve_color(color)
-        style_attrs = self._extract_style_kwargs(kwargs)
+        style_attrs, kwargs = self._extract_style_kwargs(kwargs)
         group = draw.Group(id=element_id) if element_id else draw.Group()
 
         group.append(draw.Circle(
@@ -212,7 +235,7 @@ class SVGBuilder:
         """Add a labeled diamond (decision) node."""
         rotation = kwargs.get("rotation", 0)
         fill = self._resolve_color(color)
-        style_attrs = self._extract_style_kwargs(kwargs)
+        style_attrs, kwargs = self._extract_style_kwargs(kwargs)
         group = draw.Group(id=element_id) if element_id else draw.Group()
 
         hw, hh = w / 2, h / 2
@@ -253,7 +276,7 @@ class SVGBuilder:
         """Add a labeled elliptical node (lenses, ovals, etc.)."""
         rotation = kwargs.get("rotation", 0)
         fill = self._resolve_color(color)
-        style_attrs = self._extract_style_kwargs(kwargs)
+        style_attrs, kwargs = self._extract_style_kwargs(kwargs)
         group = draw.Group(id=element_id) if element_id else draw.Group()
 
         group.append(draw.Ellipse(
@@ -292,7 +315,7 @@ class SVGBuilder:
         """
         rotation = kwargs.get("rotation", 0)
         fill = self._resolve_color(color)
-        style_attrs = self._extract_style_kwargs(kwargs)
+        style_attrs, kwargs = self._extract_style_kwargs(kwargs)
         group = draw.Group(id=element_id) if element_id else draw.Group()
 
         hw, hh = w / 2, h / 2
@@ -369,7 +392,7 @@ class SVGBuilder:
     ) -> None:
         """Add a free-floating text label (no shape behind it)."""
         rotation = kwargs.pop("rotation", 0)
-        self._extract_style_kwargs(kwargs, default_fill_opacity=-1)  # no fill-opacity for text
+        _ = self._extract_style_kwargs(kwargs, default_fill_opacity=-1)  # no fill-opacity for text
         fill = self._resolve_color(color)
         size = font_size or self._font_size()
         group = draw.Group(id=element_id) if element_id else draw.Group()
@@ -396,7 +419,7 @@ class SVGBuilder:
         **kwargs,
     ) -> None:
         """Add a plain line (no arrowhead). Supports stroke_dash for dashed lines."""
-        style_attrs = self._extract_style_kwargs(kwargs, default_fill_opacity=-1)
+        style_attrs, kwargs = self._extract_style_kwargs(kwargs, default_fill_opacity=-1)
         color = self._resolve_color(stroke_color)
         if color == stroke_color:
             color = str(self.style.get("colors", {}).get("stroke", stroke_color))
@@ -446,7 +469,7 @@ class SVGBuilder:
         start = _boundary_intersect(fx, fy, fw, fh, tx, ty)
         end = _boundary_intersect(tx, ty, tw, th, fx, fy)
 
-        style_attrs = self._extract_style_kwargs(kwargs)
+        style_attrs, kwargs = self._extract_style_kwargs(kwargs)
         color = self._resolve_color(stroke_color)
         if color == stroke_color:  # wasn't in colors dict
             color = str(self.style.get("colors", {}).get("stroke", stroke_color))
@@ -501,7 +524,7 @@ class SVGBuilder:
         start = _boundary_intersect(fx, fy, fw, fh, tx, ty)
         end = _boundary_intersect(tx, ty, tw, th, fx, fy)
 
-        style_attrs = self._extract_style_kwargs(kwargs)
+        style_attrs, kwargs = self._extract_style_kwargs(kwargs)
         color = self._resolve_color(stroke_color)
         if color == stroke_color:
             color = str(self.style.get("colors", {}).get("stroke", stroke_color))

@@ -56,3 +56,4 @@ Miniconda3-latest-MacOSX-arm64.sh
 
 # Quality gating experiment logs
 tests/experiment_log.json
+archive/
