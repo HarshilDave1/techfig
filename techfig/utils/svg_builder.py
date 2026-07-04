@@ -130,24 +130,6 @@ class SVGBuilder:
         # rotation handled separately via transform
         kw.pop("rotation", None)
         return out, kw
-        """Extract custom style keys from kwargs and return SVG-compatible attrs.
-
-        Returns a new dict with SVG style attrs without mutating the input kwargs.
-        If no ``fill_opacity`` is provided, the default (0.15) is applied
-        so shapes get a light pastel fill with a solid stroke border.
-        Pass ``default_fill_opacity=-1`` to suppress the default (e.g. for text/lines).
-        """
-        out: dict = {}
-        if "stroke_dash" in kwargs:
-            out["stroke_dasharray"] = kwargs["stroke_dash"]
-        if "fill_opacity" in kwargs:
-            out["fill_opacity"] = kwargs["fill_opacity"]
-        elif default_fill_opacity >= 0:
-            out["fill_opacity"] = default_fill_opacity
-        if "stroke_opacity" in kwargs:
-            out["stroke_opacity"] = kwargs["stroke_opacity"]
-        # rotation handled separately via transform (not an SVG attr here)
-        return out
 
     # --- shapes ---------------------------------------------------------
 

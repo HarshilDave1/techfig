@@ -100,6 +100,7 @@ def main():
     )
     crit_p.add_argument("--input", required=True, help="JSON file with diagram spec")
     crit_p.add_argument("--svg-output", required=True, help="Output SVG file path")
+    crit_p.add_argument("--fix", action="store_true", help="Apply auto-fixes (snapping to grid and aligning rows/cols) directly to the spec")
 
     # ---- animate ---------------------------------------------------------
     anim_p = subparsers.add_parser(
@@ -346,6 +347,15 @@ def main():
         print(f"Critiquing {args.input} → {args.svg_output}...")
         with open(args.input) as f:
             spec = json.load(f)
+
+        if getattr(args, "fix", False):
+            from techfig.engines.geo_linter import snap_to_grid, align_rows_and_cols
+            spec = snap_to_grid(spec, grid_size=10.0)
+            spec = align_rows_and_cols(spec, tolerance=25.0)
+            with open(args.input, "w") as f:
+                json.dump(spec, f, indent=2)
+            print(f"Applied auto-fixes and updated {args.input}")
+
         report = critique_report(spec, args.svg_output)
         # Print human-readable summary
         print(f"\nScore: {report['score']:.3f}")

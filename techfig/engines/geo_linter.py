@@ -96,11 +96,6 @@ def align_rows_and_cols(spec: Dict[str, Any], tolerance: float = 30.0) -> Dict[s
                     
     align_axis("x")
     align_axis("y")
-    
-    # Also align line endpoints
-    def align_lines(axis1: str, axis2: str, target: str):
-        # E.g. x1 and x2 matching nearby shape x's
-        pass # Simplified for now, just snapping elements
 
     return new_spec
 
@@ -146,6 +141,47 @@ def lint_spec(spec: Dict[str, Any], grid_size: float = 20.0, align_tolerance: fl
             if 0.5 < diff <= align_tolerance:
                 align_issues.append(f"Elements '{id1}' and '{id2}' are misaligned in {axis.upper()} by {diff:.1f}px")
                 
+    # Check overlaps between shapes (and text)
+    bboxes = []
+    for el in all_els:
+        el_type = el.get("type", "")
+        el_id = el.get("id", f"{el_type}_no_id")
+        if el_type == "line":
+            continue
+        if "x" not in el or "y" not in el:
+            continue
+        try:
+            x = float(el["x"])
+            y = float(el["y"])
+            if el_type in ("box", "diamond", "triangle"):
+                w = float(el.get("w", 100))
+                h = float(el.get("h", 60))
+            elif el_type == "circle":
+                r = float(el.get("r", 40))
+                w = h = r * 2
+            elif el_type == "ellipse":
+                rx = float(el.get("rx", 50))
+                ry = float(el.get("ry", 30))
+                w = rx * 2
+                h = ry * 2
+            elif el_type == "text":
+                text = el.get("text", "")
+                font_size = float(el.get("font_size", 14))
+                w = len(text) * font_size * 0.6
+                h = font_size
+            else:
+                continue
+            bboxes.append((el_id, x - w / 2, y - h / 2, x + w / 2, y + h / 2))
+        except (ValueError, TypeError):
+            continue
+
+    for i in range(len(bboxes)):
+        for j in range(i + 1, len(bboxes)):
+            id1, xmin1, ymin1, xmax1, ymax1 = bboxes[i]
+            id2, xmin2, ymin2, xmax2, ymax2 = bboxes[j]
+            if not (xmax1 <= xmin2 or xmax2 <= xmin1 or ymax1 <= ymin2 or ymax2 <= ymin1):
+                overlap_issues.append(f"Elements '{id1}' and '{id2}' overlap")
+
     # Calculate score
     # Start with 1.0. Deduct 0.1 for each major category of issue, max 0.0
     penalty = 0.0
@@ -155,6 +191,7 @@ def lint_spec(spec: Dict[str, Any], grid_size: float = 20.0, align_tolerance: fl
         penalty += min(0.4, grid_fail_ratio)
         
     penalty += min(0.4, len(align_issues) * 0.1)
+    penalty += min(0.2, len(overlap_issues) * 0.05)
     
     score = max(0.0, 1.0 - penalty)
     
