@@ -58,8 +58,8 @@ all = ["techfig[web,genai,interactive,dev]"]
 techfig = "techfig.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/harshil/techfig"
-Repository = "https://github.com/harshil/techfig"
+Homepage = "https://github.com/HarshilDave1/techfig"
+Repository = "https://github.com/HarshilDave1/techfig"
 
 [tool.ruff]
 line-length = 100
