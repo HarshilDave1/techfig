@@ -4,7 +4,8 @@ This engine processes high-level diagram descriptions (lists of nodes and edges)
 and uses the SVGBuilder to generate the final graphic.
 
 Supported shapes: box, circle, diamond, ellipse, triangle.
-Standalone elements: text (free-floating labels), line (plain lines).
+Standalone elements: text (free-floating labels), line (plain lines),
+plot (inline matplotlib chart embedded as a nested SVG).
 Connections: arrow (with arrowhead), connection (plain line between elements).
 """
 from typing import Dict, List, Any, Optional
@@ -37,6 +38,9 @@ def create_diagram(
             - shape nodes: ``id``, ``x``, ``y`` + shape-specific (w/h, r, rx/ry)
             - ``text``: ``x``, ``y``, ``text`` + optional ``font_size``
             - ``line``: ``x1``, ``y1``, ``x2``, ``y2``
+            - ``plot``: ``x``, ``y``, ``w``, ``h`` + ``chart`` dict
+              (``type``, ``data``, and optional ``x_col``/``y_col``/``hue_col``/
+              ``title``/``xlabel``/``ylabel``/``style``/``style_overrides``)
             All can include: ``color``, ``stroke_dash``, ``fill_opacity``, ``rotation``
         connections: List of connection dicts with ``from``, ``to``, and optionally
             ``label``, ``route`` (straight|orthogonal), ``color``, ``style`` (arrow|line),
@@ -113,6 +117,20 @@ def create_diagram(
                 float(el.get("x1", 0)), float(el.get("y1", 0)),
                 float(el.get("x2", 100)), float(el.get("y2", 0)),
                 text=text, stroke_color=color, **style_kw,
+            )
+
+        elif el_type == "plot":
+            chart_spec = el.get("chart")
+            if not isinstance(chart_spec, dict):
+                raise ValueError(
+                    "plot element requires a 'chart' dict with 'type' and 'data'"
+                )
+            builder.add_plot(
+                float(el.get("x", 0)), float(el.get("y", 0)),
+                float(el.get("w", 300)), float(el.get("h", 200)),
+                chart_spec=chart_spec,
+                text=text, element_id=el_id,
+                style_name=el.get("style", "nature"),
             )
 
         else:
