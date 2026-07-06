@@ -4,7 +4,8 @@ This engine processes high-level diagram descriptions (lists of nodes and edges)
 and uses the SVGBuilder to generate the final graphic.
 
 Supported shapes: box, circle, diamond, ellipse, triangle.
-Standalone elements: text (free-floating labels), line (plain lines).
+Standalone elements: text (free-floating labels), textblock (multi-line wrapped
+text with a panel background), line (plain lines).
 Connections: arrow (with arrowhead), connection (plain line between elements).
 """
 from typing import Dict, List, Any, Optional
@@ -36,6 +37,8 @@ def create_diagram(
             type-specific fields:
             - shape nodes: ``id``, ``x``, ``y`` + shape-specific (w/h, r, rx/ry)
             - ``text``: ``x``, ``y``, ``text`` + optional ``font_size``
+            - ``textblock``: ``id``, ``x``, ``y``, ``w``, ``h``, ``text`` + optional
+              ``align`` (left|center|right), ``padding``, ``line_height``, ``font_size``
             - ``line``: ``x1``, ``y1``, ``x2``, ``y2``
             All can include: ``color``, ``stroke_dash``, ``fill_opacity``, ``rotation``
         connections: List of connection dicts with ``from``, ``to``, and optionally
@@ -108,6 +111,22 @@ def create_diagram(
                 color=color, **style_kw,
             )
 
+        elif el_type == "textblock":
+            tb_kw: Dict[str, Any] = dict(style_kw)
+            if "align" in el:
+                tb_kw["align"] = el["align"]
+            if "padding" in el:
+                tb_kw["padding"] = float(el["padding"])
+            if "line_height" in el:
+                tb_kw["line_height"] = float(el["line_height"])
+            if "font_size" in el:
+                tb_kw["font_size"] = el["font_size"]
+            builder.add_textblock(
+                float(el.get("x", 0)), float(el.get("y", 0)),
+                float(el.get("w", 240)), float(el.get("h", 120)),
+                text=text, element_id=el_id, color=color, **tb_kw,
+            )
+
         elif el_type == "line":
             builder.add_line(
                 float(el.get("x1", 0)), float(el.get("y1", 0)),
@@ -137,7 +156,7 @@ def create_diagram(
             else:
                 raise ValueError(
                     f"Unknown element type: '{el_type}'. "
-                    f"Supported: {', '.join(SUPPORTED_SHAPES)}, text, line, or any registered component."
+                    f"Supported: {', '.join(SUPPORTED_SHAPES)}, text, textblock, line, or any registered component."
                 )
 
 
