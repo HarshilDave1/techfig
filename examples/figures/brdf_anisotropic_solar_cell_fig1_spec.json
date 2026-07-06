@@ -1,0 +1,102 @@
+{
+  "title": "BRDF Measurement Geometry for Anisotropic Satellite Solar Cells",
+  "description": "Illustrates the bidirectional reflectance distribution function (BRDF) measurement setup, showing how reflectance from an anisotropic solar cell surface depends on incidence angle (θ_i), viewing angle (θ_r), and azimuthal angle (φ). Includes the in-plane and out-of-plane measurement geometry, the anisotropic surface structure, and a polar BRDF plot showing angular reflectance variation.",
+  "canvas": {"width": 1400, "height": 900},
+  "style": {
+    "font_size": 14,
+    "font_family": "Arial, Helvetica, sans-serif",
+    "colors": {
+      "primary": "#0072B2",
+      "secondary": "#D55E00",
+      "accent": "#CC79A7",
+      "stroke": "#333333",
+      "fill": "#E8E8E8",
+      "text": "#333333",
+      "light_text": "#666666"
+    }
+  },
+  "elements": [
+    {"id": "sample", "type": "box", "x": 0, "y": 100, "w": 300, "h": 80, "color": "primary", "fill_opacity": 0.15, "text": ""},
+    {"id": "surface_grid", "type": "line", "x1": -120, "y1": 100, "x2": 120, "y2": 100, "color": "stroke", "stroke_dash": "4,2"},
+    {"id": "h1", "type": "line", "x1": -100, "y1": 105, "x2": -100, "y2": 140, "color": "stroke"},
+    {"id": "h2", "type": "line", "x1": -60, "y1": 105, "x2": -60, "y2": 140, "color": "stroke"},
+    {"id": "h3", "type": "line", "x1": -20, "y1": 105, "x2": -20, "y2": 140, "color": "stroke"},
+    {"id": "h4", "type": "line", "x1": 20, "y1": 105, "x2": 20, "y2": 140, "color": "stroke"},
+    {"id": "h5", "type": "line", "x1": 60, "y1": 105, "x2": 60, "y2": 140, "color": "stroke"},
+    {"id": "h6", "type": "line", "x1": 100, "y1": 105, "x2": 100, "y2": 140, "color": "stroke"},
+
+    {"id": "normal", "type": "line", "x1": 0, "y1": 100, "x2": 0, "y2": -80, "color": "stroke", "stroke_dash": "5,3"},
+    {"id": "incident_ray", "type": "line", "x1": -250, "y1": -150, "x2": 0, "y2": 100, "color": "primary"},
+    {"id": "reflected_ray", "type": "line", "x1": 0, "y1": 100, "x2": 280, "y2": -120, "color": "secondary"},
+    {"id": "out_of_plane_ray", "type": "line", "x1": 0, "y1": 100, "x2": 200, "y2": -180, "color": "accent"},
+
+    {"id": "theta_i_arc", "type": "circle", "x": 0, "y": 40, "r": 35, "color": "primary", "fill_opacity": 0, "stroke_dash": "3,2"},
+    {"id": "theta_r_arc", "type": "circle", "x": 0, "y": 40, "r": 50, "color": "secondary", "fill_opacity": 0, "stroke_dash": "3,2"},
+
+    {"id": "detector_inplane", "type": "box", "x": 320, "y": -160, "w": 60, "h": 40, "color": "secondary", "fill_opacity": 0.2, "text": ""},
+    {"id": "detector_outplane", "type": "box", "x": 230, "y": -220, "w": 60, "h": 40, "color": "accent", "fill_opacity": 0.2, "text": ""},
+    {"id": "light_source", "type": "box", "x": -300, "y": -200, "w": 60, "h": 40, "color": "primary", "fill_opacity": 0.2, "text": ""},
+
+    {"id": "polar_plot", "type": "box", "x": 500, "y": 250, "w": 400, "h": 300, "color": "stroke", "fill_opacity": 0.05, "text": ""},
+    {"id": "polar_center", "type": "circle", "x": 500, "y": 250, "r": 120, "color": "stroke", "fill_opacity": 0, "stroke_dash": "2,2"},
+    {"id": "polar_outer", "type": "circle", "x": 500, "y": 250, "r": 90, "color": "stroke", "fill_opacity": 0, "stroke_dash": "2,2"},
+    {"id": "polar_cross_h", "type": "line", "x1": 370, "y1": 250, "x2": 630, "y2": 250, "color": "stroke", "stroke_dash": "1,2"},
+    {"id": "polar_cross_v", "type": "line", "x1": 500, "y1": 120, "x2": 500, "y2": 380, "color": "stroke", "stroke_dash": "1,2"},
+
+    {"id": "brdf_curve_g", "type": "line", "x1": 500, "y1": 250, "x2": 580, "y2": 180, "color": "primary"},
+    {"id": "brdf_curve_g2", "type": "line", "x1": 580, "y1": 180, "x2": 600, "y2": 160, "color": "primary"},
+    {"id": "brdf_curve_g3", "type": "line", "x1": 600, "y1": 160, "x2": 590, "y2": 175, "color": "primary"},
+    {"id": "brdf_curve_g4", "type": "line", "x1": 590, "y1": 175, "x2": 560, "y2": 210, "color": "primary"},
+    {"id": "brdf_curve_g5", "type": "line", "x1": 560, "y1": 210, "x2": 500, "y2": 250, "color": "primary"},
+
+    {"id": "brdf_curve_m", "type": "line", "x1": 500, "y1": 250, "x2": 540, "y2": 200, "color": "secondary"},
+    {"id": "brdf_curve_m2", "type": "line", "x1": 540, "y1": 200, "x2": 560, "y2": 185, "color": "secondary"},
+    {"id": "brdf_curve_m3", "type": "line", "x1": 560, "y1": 185, "x2": 550, "y2": 195, "color": "secondary"},
+    {"id": "brdf_curve_m4", "type": "line", "x1": 550, "y1": 195, "x2": 520, "y2": 230, "color": "secondary"},
+    {"id": "brdf_curve_m5", "type": "line", "x1": 520, "y1": 230, "x2": 500, "y2": 250, "color": "secondary"},
+
+    {"id": "brdf_curve_out", "type": "line", "x1": 500, "y1": 250, "x2": 520, "y2": 220, "color": "accent"},
+    {"id": "brdf_curve_out2", "type": "line", "x1": 520, "y1": 220, "x2": 530, "y2": 210, "color": "accent"},
+    {"id": "brdf_curve_out3", "type": "line", "x1": 530, "y1": 210, "x2": 520, "y2": 225, "color": "accent"},
+    {"id": "brdf_curve_out4", "type": "line", "x1": 520, "y1": 225, "x2": 500, "y2": 250, "color": "accent"},
+
+    {"type": "text", "x": 0, "y": -95, "text": "Surface Normal (n̂)", "color": "stroke", "font_size": 12},
+    {"type": "text", "x": -340, "y": -230, "text": "Light Source", "color": "primary", "font_size": 12},
+    {"type": "text", "x": -340, "y": -215, "text": "(θ_i = 30°)", "color": "primary", "font_size": 11},
+    {"type": "text", "x": 360, "y": -190, "text": "Detector A", "color": "secondary", "font_size": 12},
+    {"type": "text", "x": 360, "y": -175, "text": "(in-plane, θ_r)", "color": "secondary", "font_size": 11},
+    {"type": "text", "x": 270, "y": -250, "text": "Detector B", "color": "accent", "font_size": 12},
+    {"type": "text", "x": 270, "y": -235, "text": "(out-of-plane, φ≠0)", "color": "accent", "font_size": 11},
+    {"type": "text", "x": -55, "y": 60, "text": "θ_i", "color": "primary", "font_size": 13},
+    {"type": "text", "x": 55, "y": 60, "text": "θ_r", "color": "secondary", "font_size": 13},
+
+    {"type": "text", "x": 0, "y": 170, "text": "Anisotropic Solar Cell Surface", "color": "primary", "font_size": 13},
+    {"type": "text", "x": 0, "y": 190, "text": "(grid structure → direction-dependent reflectance)", "color": "light_text", "font_size": 11},
+
+    {"type": "text", "x": -180, "y": -30, "text": "Incident", "color": "primary", "font_size": 12},
+    {"type": "text", "x": 180, "y": -10, "text": "Reflected", "color": "secondary", "font_size": 12},
+
+    {"type": "text", "x": 500, "y": 110, "text": "Polar BRDF Plot", "color": "stroke", "font_size": 13},
+    {"type": "text", "x": 500, "y": 395, "text": "Viewing Angle θ_r", "color": "light_text", "font_size": 11},
+    {"type": "text", "x": 370, "y": 260, "text": "0°", "color": "light_text", "font_size": 10},
+    {"type": "text", "x": 640, "y": 260, "text": "180°", "color": "light_text", "font_size": 10},
+
+    {"type": "text", "x": 660, "y": 170, "text": "Γ-axis scan", "color": "primary", "font_size": 11},
+    {"type": "text", "x": 660, "y": 190, "text": "M-axis scan", "color": "secondary", "font_size": 11},
+    {"type": "text", "x": 660, "y": 210, "text": "Out-of-plane", "color": "accent", "font_size": 11},
+
+    {"type": "text", "x": -350, "y": 280, "text": "Key Physics:", "color": "stroke", "font_size": 13},
+    {"type": "text", "x": -350, "y": 300, "text": "BRDF = dL_r / (L_i · cos θ_i · dω_r)", "color": "primary", "font_size": 12},
+    {"type": "text", "x": -350, "y": 320, "text": "Anisotropy: f_r(θ_i, θ_r, φ) ≠ f_r(θ_i, θ_r, 0)", "color": "secondary", "font_size": 12},
+    {"type": "text", "x": -350, "y": 340, "text": "Grid-aligned surface →", "color": "light_text", "font_size": 11},
+    {"type": "text", "x": -350, "y": 358, "text": "  reflectance peaks shift with φ", "color": "light_text", "font_size": 11},
+    {"type": "text", "x": -350, "y": 385, "text": "In-plane: specular + diffuse lobe", "color": "stroke", "font_size": 11},
+    {"type": "text", "x": -350, "y": 403, "text": "Out-of-plane: reveals anisotropic", "color": "stroke", "font_size": 11},
+    {"type": "text", "x": -350, "y": 421, "text": "  scattering from surface periodicity", "color": "stroke", "font_size": 11}
+  ],
+  "connections": [
+    {"from": "light_source", "to": "sample", "label": "", "style": "arrow", "color": "primary"},
+    {"from": "sample", "to": "detector_inplane", "label": "", "style": "arrow", "color": "secondary"},
+    {"from": "sample", "to": "detector_outplane", "label": "", "style": "arrow", "color": "accent", "stroke_dash": "4,2"}
+  ]
+}

@@ -400,6 +400,7 @@ class SVGBuilder:
     ) -> None:
         """Add a plain line (no arrowhead). Supports stroke_dash for dashed lines."""
         style_attrs, kwargs = self._extract_style_kwargs(kwargs, default_fill_opacity=-1)
+        label_y_override = kwargs.pop("label_y_override", None)
         color = self._resolve_color(stroke_color)
         if color == stroke_color:
             color = str(self.style.get("colors", {}).get("stroke", stroke_color))
@@ -415,9 +416,10 @@ class SVGBuilder:
         if text:
             mid_x = (x1 + x2) / 2
             mid_y = (y1 + y2) / 2
+            label_y = label_y_override if label_y_override is not None else mid_y - 10
             self.drawing.append(draw.Text(
                 text, self._font_size() * 0.8,
-                x=mid_x, y=mid_y - 10,
+                x=mid_x, y=label_y,
                 center=True,
                 font_family=self._font_family(),
                 fill=self._text_color(),
@@ -450,6 +452,7 @@ class SVGBuilder:
         end = _boundary_intersect(tx, ty, tw, th, fx, fy)
 
         style_attrs, kwargs = self._extract_style_kwargs(kwargs)
+        label_y_override = kwargs.pop("label_y_override", None)
         color = self._resolve_color(stroke_color)
         if color == stroke_color:  # wasn't in colors dict
             color = str(self.style.get("colors", {}).get("stroke", stroke_color))
@@ -479,9 +482,10 @@ class SVGBuilder:
         if text:
             mid_x = (start[0] + end[0]) / 2
             mid_y = (start[1] + end[1]) / 2
+            label_y = label_y_override if label_y_override is not None else mid_y - 10
             self.drawing.append(draw.Text(
                 text, self._font_size() * 0.8,
-                x=mid_x, y=mid_y - 10,
+                x=mid_x, y=label_y,
                 center=True,
                 font_family=self._font_family(),
                 fill=self._text_color(),
@@ -505,6 +509,7 @@ class SVGBuilder:
         end = _boundary_intersect(tx, ty, tw, th, fx, fy)
 
         style_attrs, kwargs = self._extract_style_kwargs(kwargs)
+        label_y_override = kwargs.pop("label_y_override", None)
         color = self._resolve_color(stroke_color)
         if color == stroke_color:
             color = str(self.style.get("colors", {}).get("stroke", stroke_color))
@@ -528,9 +533,10 @@ class SVGBuilder:
         if text:
             mid_x = (start[0] + end[0]) / 2
             mid_y = (start[1] + end[1]) / 2
+            label_y = label_y_override if label_y_override is not None else mid_y - 10
             self.drawing.append(draw.Text(
                 text, self._font_size() * 0.8,
-                x=mid_x, y=mid_y - 10,
+                x=mid_x, y=label_y,
                 center=True,
                 font_family=self._font_family(),
                 fill=self._text_color(),

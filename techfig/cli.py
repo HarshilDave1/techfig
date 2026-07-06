@@ -349,12 +349,13 @@ def main():
             spec = json.load(f)
 
         if getattr(args, "fix", False):
-            from techfig.engines.geo_linter import snap_to_grid, align_rows_and_cols
+            from techfig.engines.geo_linter import snap_to_grid, align_rows_and_cols, fix_text_overlaps
+            spec = fix_text_overlaps(spec)  # de-collide text labels first
             spec = snap_to_grid(spec, grid_size=10.0)
             spec = align_rows_and_cols(spec, tolerance=25.0)
             with open(args.input, "w") as f:
                 json.dump(spec, f, indent=2)
-            print(f"Applied auto-fixes and updated {args.input}")
+            print(f"Applied auto-fixes (text de-collision + grid snap + alignment) and updated {args.input}")
 
         report = critique_report(spec, args.svg_output)
         # Print human-readable summary

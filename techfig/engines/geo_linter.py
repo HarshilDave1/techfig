@@ -35,6 +35,9 @@ def snap_to_grid(spec: Dict[str, Any], grid_size: float = 20.0) -> Dict[str, Any
     """Auto-correct a spec by snapping coordinates and sizes to a grid.
     
     Returns a deep copy of the spec with snapped values.
+    Text elements are NOT snapped — they have sub-pixel offsets that are
+    intentional for label positioning, and snapping them to the same grid
+    point creates label collisions.
     """
     new_spec = copy.deepcopy(spec)
     
@@ -46,6 +49,8 @@ def snap_to_grid(spec: Dict[str, Any], grid_size: float = 20.0) -> Dict[str, Any
     keys_to_snap = ["x", "y", "w", "h", "r", "rx", "ry", "x1", "y1", "x2", "y2"]
     
     for el in new_spec.get("elements", []):
+        if el.get("type") == "text":
+            continue  # don't snap text labels
         for k in keys_to_snap:
             if k in el and _is_numeric(el[k]):
                 el[k] = snap(el[k])
@@ -68,7 +73,8 @@ def align_rows_and_cols(spec: Dict[str, Any], tolerance: float = 30.0) -> Dict[s
     def align_axis(axis: str):
         # find groups of elements that share roughly the same coordinate along 'axis'
         # sort elements by the coordinate
-        els = [e for e in elements if axis in e and _is_numeric(e[axis])]
+        # Skip text elements — force-aligning them creates label collisions
+        els = [e for e in elements if axis in e and _is_numeric(e[axis]) and e.get("type") != "text"]
         if not els:
             return
             
@@ -96,6 +102,108 @@ def align_rows_and_cols(spec: Dict[str, Any], tolerance: float = 30.0) -> Dict[s
                     
     align_axis("x")
     align_axis("y")
+
+    return new_spec
+
+
+def fix_text_overlaps(spec: Dict[str, Any], default_font_size: float = 14.0) -> Dict[str, Any]:
+    """De-collide text labels that overlap each other.
+    
+    Phase 1: Groups text elements within 5px of each other and stacks them
+    vertically with line spacing.
+    Phase 2: Greedy pairwise de-collision — pushes any overlapping text
+    bboxes down by one line height, repeating until clear.
+    
+    This is the deterministic fix for the most common LLM-generated spec
+    problem: multi-line labels emitted as separate text elements at
+    identical or near-identical coordinates.
+    
+    Returns a deep copy of the spec with adjusted text coordinates.
+    """
+    new_spec = copy.deepcopy(spec)
+    elements = new_spec.get("elements", [])
+    if not elements:
+        return new_spec
+
+    text_indices = [i for i, el in enumerate(elements) if el.get("type") == "text"]
+    if not text_indices:
+        return new_spec
+
+    line_height = default_font_size * 1.4
+
+    # Phase 1: cluster and stack
+    CLUSTER_TOL = 5.0
+    clustered: list[list[int]] = []
+    assigned: set[int] = set()
+
+    for idx, i in enumerate(text_indices):
+        if i in assigned:
+            continue
+        el = elements[i]
+        cluster = [i]
+        assigned.add(i)
+        x1, y1 = float(el.get("x", 0)), float(el.get("y", 0))
+        for j in text_indices[idx + 1:]:
+            if j in assigned:
+                continue
+            el2 = elements[j]
+            x2, y2 = float(el2.get("x", 0)), float(el2.get("y", 0))
+            if abs(x1 - x2) <= CLUSTER_TOL and abs(y1 - y2) <= CLUSTER_TOL:
+                cluster.append(j)
+                assigned.add(j)
+        clustered.append(cluster)
+
+    for cluster in clustered:
+        if len(cluster) <= 1:
+            continue
+        cluster.sort()
+        base_x = float(elements[cluster[0]].get("x", 0))
+        base_y = float(elements[cluster[0]].get("y", 0))
+        for line_idx, el_idx in enumerate(cluster):
+            elements[el_idx]["y"] = base_y + line_idx * line_height
+            elements[el_idx]["x"] = base_x
+
+    # Phase 2: greedy pairwise de-collision
+    def _text_bbox(el):
+        x = float(el.get("x", 0))
+        y = float(el.get("y", 0))
+        text = el.get("text", "")
+        fs = float(el.get("font_size", default_font_size))
+        w = max(len(text) * fs * 0.6, 1.0)
+        h = fs
+        return x, y, w, h
+
+    def _overlap(a, b, padding=2.0):
+        ax, ay, aw, ah = a
+        bx, by, bw, bh = b
+        return not (
+            ax + aw / 2 + padding <= bx - bw / 2
+            or bx + bw / 2 + padding <= ax - aw / 2
+            or ay + ah / 2 + padding <= by - bh / 2
+            or by + bh / 2 + padding <= ay - ah / 2
+        )
+
+    MAX_ITERS = 20
+    for _ in range(MAX_ITERS):
+        moved = False
+        text_els = [(i, elements[i]) for i in range(len(elements)) if elements[i].get("type") == "text"]
+        for a in range(len(text_els)):
+            for b in range(a + 1, len(text_els)):
+                i_a, el_a = text_els[a]
+                i_b, el_b = text_els[b]
+                if _overlap(_text_bbox(el_a), _text_bbox(el_b)):
+                    ay = float(el_a.get("y", 0))
+                    by = float(el_b.get("y", 0))
+                    if ay <= by:
+                        elements[i_b]["y"] = by + line_height
+                    else:
+                        elements[i_a]["y"] = ay + line_height
+                    moved = True
+                    break
+            if moved:
+                break
+        if not moved:
+            break
 
     return new_spec
 
@@ -143,9 +251,10 @@ def lint_spec(spec: Dict[str, Any], grid_size: float = 20.0, align_tolerance: fl
                 
     # Check overlaps between shapes (and text)
     bboxes = []
+    text_bboxes = []  # track text-text overlaps separately for higher penalty
     for el in all_els:
         el_type = el.get("type", "")
-        el_id = el.get("id", f"{el_type}_no_id")
+        el_id = el.get("id", f"{el_type}_no_id_{id(el)}")
         if el_type == "line":
             continue
         if "x" not in el or "y" not in el:
@@ -171,27 +280,37 @@ def lint_spec(spec: Dict[str, Any], grid_size: float = 20.0, align_tolerance: fl
                 h = font_size
             else:
                 continue
-            bboxes.append((el_id, x - w / 2, y - h / 2, x + w / 2, y + h / 2))
+            entry = (el_id, x - w / 2, y - h / 2, x + w / 2, y + h / 2, el_type)
+            bboxes.append(entry)
+            if el_type == "text":
+                text_bboxes.append(entry)
         except (ValueError, TypeError):
             continue
 
+    text_overlap_count = 0
     for i in range(len(bboxes)):
         for j in range(i + 1, len(bboxes)):
-            id1, xmin1, ymin1, xmax1, ymax1 = bboxes[i]
-            id2, xmin2, ymin2, xmax2, ymax2 = bboxes[j]
+            id1, xmin1, ymin1, xmax1, ymax1, type1 = bboxes[i]
+            id2, xmin2, ymin2, xmax2, ymax2, type2 = bboxes[j]
             if not (xmax1 <= xmin2 or xmax2 <= xmin1 or ymax1 <= ymin2 or ymax2 <= ymin1):
-                overlap_issues.append(f"Elements '{id1}' and '{id2}' overlap")
+                if type1 == "text" and type2 == "text":
+                    text_overlap_count += 1
+                    overlap_issues.append(f"Text labels '{id1}' and '{id2}' overlap (unreadable)")
+                else:
+                    overlap_issues.append(f"Elements '{id1}' and '{id2}' overlap")
 
     # Calculate score
-    # Start with 1.0. Deduct 0.1 for each major category of issue, max 0.0
+    # Start with 1.0. Deduct for each category of issue.
+    # Text-text overlaps are heavily penalized — they make labels unreadable.
     penalty = 0.0
-    
+
     if total_checks > 0:
         grid_fail_ratio = failed_grid_checks / total_checks
         penalty += min(0.4, grid_fail_ratio)
-        
+
     penalty += min(0.4, len(align_issues) * 0.1)
-    penalty += min(0.2, len(overlap_issues) * 0.05)
+    penalty += min(0.2, (len(overlap_issues) - text_overlap_count) * 0.05)  # shape overlaps
+    penalty += min(0.5, text_overlap_count * 0.15)  # text-text overlaps: up to 0.5 penalty
     
     score = max(0.0, 1.0 - penalty)
     
