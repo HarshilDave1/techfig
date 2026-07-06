@@ -61,7 +61,7 @@ DIAGRAM_SCHEMA: Dict[str, Any] = {
                 "properties": {
                     "type": {
                         "type": "string",
-                        "enum": ["box", "circle", "diamond", "ellipse", "triangle", "text", "line"],
+                        "enum": ["box", "circle", "diamond", "ellipse", "triangle", "text", "line", "legend"],
                     },
                     "id": {"type": "string", "description": "Unique ID for connections"},
                     "text": {"type": "string"},
@@ -77,6 +77,21 @@ DIAGRAM_SCHEMA: Dict[str, Any] = {
                     "stroke_dash": {"type": "string"},
                     "fill_opacity": {"type": "number"},
                     "rotation": {"type": "number"},
+                    "title": {"type": "string", "description": "Legend panel heading"},
+                    "swatch_shape": {"type": "string", "enum": ["rect", "circle"], "description": "Legend default swatch shape"},
+                    "entries": {
+                        "type": "array",
+                        "description": "Legend rows: list of {label, color, swatch_shape?}",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "label": {"type": "string"},
+                                "color": {"type": "string"},
+                                "swatch_shape": {"type": "string", "enum": ["rect", "circle"]},
+                            },
+                            "required": ["label", "color"],
+                        },
+                    },
                 },
                 "required": ["type"],
             },
@@ -121,6 +136,7 @@ and output a JSON specification that recreates it using clean geometric primitiv
 | triangle | id, x, y | w, h, text, color, direction(up/down/left/right), fill_opacity | Triangle. Default 6060 |
 | text | x, y, text | id, font_size, color, rotation | Free-floating label (no shape). Use for annotations |
 | line | x1, y1, x2, y2 | text, color, stroke_dash | Plain line. stroke_dash="5,3" for dashed |
+| legend | x, y | w, h, id, title, color, entries, swatch_shape, stroke_dash, fill_opacity, rotation | Bordered panel with swatch+label rows. ``entries`` is a list of {label, color, swatch_shape?}. ``swatch_shape`` defaults to "rect" (or "circle"). Good for color keys |
 
 ## Connections (arrows and lines between elements)
 
@@ -173,7 +189,7 @@ Return ONLY valid JSON (no markdown fences, no explanation):
   "connections": [...]
 }
  
-IMPORTANT: Every element MUST include a "type" field matching one of the types listed above (e.g. "box", "circle", "text", "line", "diamond", "ellipse", "triangle").
+IMPORTANT: Every element MUST include a "type" field matching one of the types listed above (e.g. "box", "circle", "text", "line", "diamond", "ellipse", "triangle", "legend").
 Example element with type: {"type": "box", "id": "mybox", "x": 0, "y": 0, "w": 100, "h": 60, "text": "Box", "color": "#0072B2", "fill_opacity": 1.0}
 Do NOT omit the "type" field from any element.
 """

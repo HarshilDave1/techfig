@@ -441,6 +441,118 @@ class SVGBuilder:
                 fill=self._text_color(),
             ))
 
+    def add_legend(
+        self,
+        x: float, y: float, w: float, h: float,
+        entries: list,
+        element_id: str = "",
+        title: str = "",
+        color: str = "stroke",
+        swatch_shape: str = "rect",
+        **kwargs,
+    ) -> None:
+        """Add a bordered legend panel with swatch + label rows.
+
+        Args:
+            x, y: Center of the panel.
+            w, h: Panel size.
+            entries: List of dicts, each ``{"label": str, "color": str}`` where
+                ``color`` may be a semantic key (``primary``) or a hex value.
+                An optional ``swatch_shape`` per-entry overrides the panel default
+                (``"rect"`` or ``"circle"``).
+            element_id: Optional id (registers the panel bounds for connections).
+            title: Optional heading drawn at the top of the panel.
+            color: Border color (semantic key or hex).
+            swatch_shape: Default swatch shape — ``"rect"`` or ``"circle"``.
+            **kwargs: Accepts ``stroke_dash``, ``fill_opacity``, ``rotation`` for
+                the panel border (same conventions as other shapes).
+        """
+        rotation = kwargs.get("rotation", 0)
+        border_color = self._resolve_color(color)
+        if border_color == color and color != "stroke":
+            # not a semantic key — use as-is
+            pass
+        style_attrs, kwargs = self._extract_style_kwargs(kwargs, default_fill_opacity=-1)
+        group = draw.Group(id=element_id) if element_id else draw.Group()
+
+        # Panel background (subtle fill) + border
+        panel_fill = self.style.get("colors", {}).get("background", "#FFFFFF")
+        panel_opacity = style_attrs.pop("fill_opacity", 0.9)
+        rx = 4
+        group.append(draw.Rectangle(
+            x - w / 2, y - h / 2, w, h,
+            fill=panel_fill,
+            fill_opacity=panel_opacity,
+            stroke=border_color,
+            stroke_width=self._stroke_width(),
+            rx=rx, ry=rx,
+            **style_attrs,
+            **kwargs,
+        ))
+
+        # Layout: optional title row, then one row per entry.
+        font_size = self._font_size()
+        title_size = font_size * 1.0
+        row_height = font_size * 1.6
+        pad = font_size * 0.8
+        swatch_size = font_size * 0.9
+        swatch_gap = swatch_size + pad * 0.6
+
+        top = y - h / 2 + pad
+        cursor_y = top
+
+        if title:
+            group.append(draw.Text(
+                title, title_size,
+                x=x - w / 2 + pad, y=cursor_y + title_size * 0.35,
+                font_family=self._font_family(),
+                fill=self._text_color(),
+                font_weight="bold",
+            ))
+            cursor_y += title_size * 1.4
+
+        label_x = x - w / 2 + pad + swatch_gap
+        text_color = self._text_color()
+
+        for entry in entries:
+            label = str(entry.get("label", ""))
+            swatch_color = self._resolve_color(entry.get("color", "primary"))
+            shape = entry.get("swatch_shape", swatch_shape)
+            swatch_cx = x - w / 2 + pad + swatch_size / 2
+            swatch_cy = cursor_y + font_size * 0.35
+
+            if shape == "circle":
+                group.append(draw.Circle(
+                    swatch_cx, swatch_cy, swatch_size / 2,
+                    fill=swatch_color,
+                    stroke=swatch_color,
+                    stroke_width=1,
+                ))
+            else:  # rect
+                group.append(draw.Rectangle(
+                    swatch_cx - swatch_size / 2, swatch_cy - swatch_size / 2,
+                    swatch_size, swatch_size,
+                    fill=swatch_color,
+                    stroke=swatch_color,
+                    stroke_width=1,
+                    rx=2, ry=2,
+                ))
+
+            if label:
+                group.append(draw.Text(
+                    label, font_size,
+                    x=label_x, y=cursor_y + font_size * 0.35,
+                    font_family=self._font_family(),
+                    fill=text_color,
+                ))
+
+            cursor_y += row_height
+
+        _apply_rotation(group, x, y, rotation)
+        self.drawing.append(group)
+        if element_id:
+            self._elements[element_id] = (x, y, w, h)
+
 
     # --- connections ----------------------------------------------------
 

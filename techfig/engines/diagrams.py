@@ -4,7 +4,8 @@ This engine processes high-level diagram descriptions (lists of nodes and edges)
 and uses the SVGBuilder to generate the final graphic.
 
 Supported shapes: box, circle, diamond, ellipse, triangle.
-Standalone elements: text (free-floating labels), line (plain lines).
+Standalone elements: text (free-floating labels), line (plain lines),
+legend (bordered panel with swatch+label rows).
 Connections: arrow (with arrowhead), connection (plain line between elements).
 """
 from typing import Dict, List, Any, Optional
@@ -115,6 +116,19 @@ def create_diagram(
                 text=text, stroke_color=color, **style_kw,
             )
 
+        elif el_type == "legend":
+            entries = el.get("entries", [])
+            builder.add_legend(
+                float(el.get("x", 0)), float(el.get("y", 0)),
+                float(el.get("w", 180)), float(el.get("h", 120)),
+                entries=entries,
+                element_id=el_id,
+                title=el.get("title", ""),
+                color=color,
+                swatch_shape=el.get("swatch_shape", "rect"),
+                **style_kw,
+            )
+
         else:
             # Try component registry for custom/lab-folder components
             registry = get_registry()
@@ -137,7 +151,7 @@ def create_diagram(
             else:
                 raise ValueError(
                     f"Unknown element type: '{el_type}'. "
-                    f"Supported: {', '.join(SUPPORTED_SHAPES)}, text, line, or any registered component."
+                    f"Supported: {', '.join(SUPPORTED_SHAPES)}, text, line, legend, or any registered component."
                 )
 
 

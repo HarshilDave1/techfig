@@ -105,3 +105,160 @@ def test_component_rendering(tmp_path):
         assert "R" in content
         # There should be embedded SVGs internally, so > 1.
         assert content.count("<svg") > 1
+
+
+# ---- Legend element (P3-E) ──────────────────────────────────────────────
+
+
+def test_svgbuilder_legend_basic(tmp_path):
+    """SVGBuilder.add_legend renders a bordered panel with swatch+label rows."""
+    from techfig.utils.svg_builder import SVGBuilder
+
+    b = SVGBuilder(400, 300)
+    b.add_legend(
+        0, 0, 180, 120,
+        entries=[
+            {"label": "Signal A", "color": "primary"},
+            {"label": "Signal B", "color": "#D55E00"},
+            {"label": "Control", "color": "accent"},
+        ],
+        title="Conditions",
+        element_id="leg1",
+    )
+    out = str(tmp_path / "legend_basic.svg")
+    b.save(out)
+    content = open(out).read()
+
+    # Panel border + at least one rect swatch
+    assert "<rect" in content
+    assert "Conditions" in content
+    assert "Signal A" in content
+    assert "Signal B" in content
+    assert "Control" in content
+    # element_id should be registered for connections
+    assert "leg1" in content
+
+
+def test_svgbuilder_legend_circle_swatch(tmp_path):
+    """Per-entry swatch_shape='circle' renders a <circle> swatch."""
+    from techfig.utils.svg_builder import SVGBuilder
+
+    b = SVGBuilder(400, 300)
+    b.add_legend(
+        0, 0, 160, 100,
+        entries=[
+            {"label": "X", "color": "#0072B2", "swatch_shape": "circle"},
+            {"label": "Y", "color": "#009E73", "swatch_shape": "circle"},
+        ],
+        swatch_shape="rect",
+    )
+    out = str(tmp_path / "legend_circle.svg")
+    b.save(out)
+    content = open(out).read()
+    assert "<circle" in content
+    assert ">X<" in content or "X" in content
+
+
+def test_svgbuilder_legend_no_title(tmp_path):
+    """A legend without a title still renders entries."""
+    from techfig.utils.svg_builder import SVGBuilder
+
+    b = SVGBuilder(400, 300)
+    b.add_legend(
+        0, 0, 140, 90,
+        entries=[{"label": "only", "color": "secondary"}],
+    )
+    out = str(tmp_path / "legend_notitle.svg")
+    b.save(out)
+    content = open(out).read()
+    assert "only" in content
+    assert "<rect" in content
+
+
+def test_svgbuilder_legend_dashed_border(tmp_path):
+    """stroke_dash on the legend panel border is honoured."""
+    from techfig.utils.svg_builder import SVGBuilder
+
+    b = SVGBuilder(400, 300)
+    b.add_legend(
+        0, 0, 140, 90,
+        entries=[{"label": "d", "color": "primary"}],
+        stroke_dash="5,3",
+    )
+    out = str(tmp_path / "legend_dash.svg")
+    b.save(out)
+    content = open(out).read()
+    assert "stroke-dasharray" in content
+
+
+def test_svgbuilder_legend_connection(tmp_path):
+    """A legend registered with an id can be the endpoint of a connection."""
+    from techfig.utils.svg_builder import SVGBuilder
+
+    b = SVGBuilder(400, 300)
+    b.add_box(0, 0, 60, 40, text="Src", element_id="src")
+    b.add_legend(150, 0, 120, 80, entries=[{"label": "L", "color": "primary"}],
+                 element_id="leg")
+    b.add_arrow("src", "leg")
+    out = str(tmp_path / "legend_conn.svg")
+    b.save(out)
+    content = open(out).read()
+    assert "<path" in content
+
+
+def test_diagram_legend_element(tmp_path):
+    """create_diagram accepts a 'legend' element type and renders it."""
+    from techfig.engines.diagrams import create_diagram
+
+    elements = [
+        {"type": "box", "id": "b1", "x": -200, "y": 0, "text": "Data"},
+        {
+            "type": "legend", "id": "leg", "x": 200, "y": 0,
+            "w": 200, "h": 140, "title": "Legend",
+            "color": "#333333",
+            "entries": [
+                {"label": "Series A", "color": "#0072B2"},
+                {"label": "Series B", "color": "#D55E00", "swatch_shape": "circle"},
+            ],
+        },
+    ]
+    connections = [{"from": "b1", "to": "leg"}]
+    out = create_diagram(elements, connections, str(tmp_path / "diag_legend.svg"))
+    content = open(out).read()
+    assert "Legend" in content
+    assert "Series A" in content
+    assert "Series B" in content
+    assert "<rect" in content
+    assert "<circle" in content
+    # connection should have been drawn (path element)
+    assert "<path" in content
+
+
+def test_diagram_legend_default_size(tmp_path):
+    """A legend element with no w/h uses sensible defaults and still renders."""
+    from techfig.engines.diagrams import create_diagram
+
+    elements = [
+        {
+            "type": "legend", "id": "leg", "x": 0, "y": 0,
+            "entries": [{"label": "ok", "color": "primary"}],
+        },
+    ]
+    out = create_diagram(elements, [], str(tmp_path / "diag_legend_default.svg"))
+    content = open(out).read()
+    assert "ok" in content
+
+
+def test_diagram_legend_in_schema_enum():
+    """The sketch interpreter schema should list 'legend' in the element type enum."""
+    from techfig.engines.sketch_interpreter import DIAGRAM_SCHEMA, SKETCH_PROMPT
+
+    el_props = DIAGRAM_SCHEMA["properties"]["elements"]["items"]["properties"]
+    assert "legend" in el_props["type"]["enum"]
+    # legend-specific fields present
+    assert "entries" in el_props
+    assert "title" in el_props
+    assert "swatch_shape" in el_props
+    # prompt documents the legend type
+    assert "| legend |" in SKETCH_PROMPT
+    assert "legend" in SKETCH_PROMPT.split("IMPORTANT")[1]
