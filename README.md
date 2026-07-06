@@ -83,7 +83,7 @@ techfig styles
 
 ## Styles
 
-Built-in presets: `nature`, `science`, `dark`, `presentation`, `minimal`
+Built-in presets: `nature`, `science`, `dark`, `presentation`, `minimal`, `metal`, `semiconductor`, `glass`, `dielectric`, `substrate`
 
 Custom styles via YAML files — see `templates/styles/example_custom.yaml`.
 
