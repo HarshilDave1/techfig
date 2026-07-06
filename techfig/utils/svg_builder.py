@@ -409,6 +409,173 @@ class SVGBuilder:
             approx_w = len(text) * size * 0.6
             self._elements[element_id] = (x, y, approx_w, size)
 
+    # --- free-form arrows and paths (first-class elements) -------------
+
+    def add_arrow_xy(
+        self,
+        x1: float, y1: float, x2: float, y2: float,
+        text: str = "",
+        stroke_color: str = "stroke",
+        curve: Optional[float] = None,
+        **kwargs,
+    ) -> None:
+        """Add a standalone arrow by explicit coordinates (not element ids).
+
+        Unlike ``add_arrow`` (which connects two named elements), this draws
+        an arrow between two absolute canvas points. Useful for free-form
+        annotations, leader lines, and paths that don't anchor to a shape.
+
+        ``curve``: optional quadratic-bezier curvature. Positive bows the
+        arrow to the right of the start→end direction, negative to the left.
+        """
+        style_attrs, kwargs = self._extract_style_kwargs(kwargs, default_fill_opacity=-1)
+        color = self._resolve_color(stroke_color)
+        if color == stroke_color:
+            color = str(self.style.get("colors", {}).get("stroke", stroke_color))
+
+        arrow_marker = draw.Marker(-0.1, -0.5, 0.9, 0.5, scale=8, orient="auto")
+        arrow_marker.append(
+            draw.Lines(-0.1, -0.5, -0.1, 0.5, 0.9, 0, fill=color, close=True)  # type: ignore
+        )
+
+        path = draw.Path(
+            stroke=color,
+            stroke_width=self._stroke_width(),
+            fill="none",
+            marker_end=arrow_marker,
+            **style_attrs,
+            **kwargs,
+        )
+        path.M(x1, y1)
+        if curve:
+            mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+            dx, dy = x2 - x1, y2 - y1
+            # perpendicular offset for the control point
+            nx, ny = -dy, dx
+            length = (nx * nx + ny * ny) ** 0.5
+            if length:
+                nx, ny = nx / length, ny / length
+            cx = mx + nx * curve
+            cy = my + ny * curve
+            path.Q(cx, cy, x2, y2)
+        else:
+            path.L(x2, y2)
+        self.drawing.append(path)
+
+        if text:
+            mid_x = (x1 + x2) / 2
+            mid_y = (y1 + y2) / 2
+            self.drawing.append(draw.Text(
+                text, self._font_size() * 0.8,
+                x=mid_x, y=mid_y - 10,
+                center=True,
+                font_family=self._font_family(),
+                fill=self._text_color(),
+            ))
+
+    def add_path(
+        self,
+        points: list,
+        text: str = "",
+        stroke_color: str = "stroke",
+        closed: bool = False,
+        arrowhead: str = "none",
+        **kwargs,
+    ) -> None:
+        """Add a multi-segment path from a list of points.
+
+        ``points``: list of (x, y) tuples; at least 2 points required.
+        Each point may optionally be a 3-tuple (x, y, command) where
+        command is one of "M" (moveto), "L" (lineto), "C" (cubic Bezier
+        — needs two extra control points, so the next two list entries
+        are consumed as controls), or "Q" (quadratic — needs one extra
+        control point). Defaults to "M" for the first point and "L" for
+        the rest.
+
+        ``closed``: if True, closes the path (Z) — useful for outlines.
+        ``arrowhead``: "none" (default), "end", "start", or "both".
+        """
+        if len(points) < 2:
+            raise ValueError("add_path requires at least 2 points")
+
+        style_attrs, kwargs = self._extract_style_kwargs(kwargs, default_fill_opacity=-1)
+        color = self._resolve_color(stroke_color)
+        if color == stroke_color:
+            color = str(self.style.get("colors", {}).get("stroke", stroke_color))
+
+        marker = None
+        if arrowhead in ("end", "both"):
+            marker = draw.Marker(-0.1, -0.5, 0.9, 0.5, scale=8, orient="auto")
+            marker.append(
+                draw.Lines(-0.1, -0.5, -0.1, 0.5, 0.9, 0, fill=color, close=True)  # type: ignore
+            )
+
+        start_marker = None
+        if arrowhead in ("start", "both"):
+            start_marker = draw.Marker(0.9, -0.5, -0.1, 0.5, scale=8, orient="auto-start-reverse")
+            start_marker.append(
+                draw.Lines(0.9, -0.5, 0.9, 0.5, -0.1, 0, fill=color, close=True)  # type: ignore
+            )
+
+        fill = "none" if not closed else color
+        path = draw.Path(
+            stroke=color,
+            stroke_width=self._stroke_width(),
+            fill=fill,
+            marker_end=marker,
+            marker_start=start_marker,
+            **style_attrs,
+            **kwargs,
+        )
+
+        i = 0
+        first = True
+        while i < len(points):
+            pt = points[i]
+            if len(pt) == 3:
+                x, y, cmd = pt
+                cmd = cmd.upper()
+            else:
+                x, y = pt[0], pt[1]
+                cmd = "M" if first else "L"
+
+            if cmd == "M":
+                path.M(x, y)
+                i += 1
+            elif cmd == "L":
+                path.L(x, y)
+                i += 1
+            elif cmd == "Q":
+                cx, cy = points[i + 1][0], points[i + 1][1]
+                path.Q(cx, cy, x, y)
+                i += 2
+            elif cmd == "C":
+                c1x, c1y = points[i + 1][0], points[i + 1][1]
+                c2x, c2y = points[i + 2][0], points[i + 2][1]
+                path.C(c1x, c1y, c2x, c2y, x, y)
+                i += 3
+            else:
+                raise ValueError(f"Unknown path command: {cmd}")
+            first = False
+
+        if closed:
+            path.Z()
+
+        self.drawing.append(path)
+
+        if text:
+            xs = [p[0] for p in points if len(p) >= 2]
+            ys = [p[1] for p in points if len(p) >= 2]
+            mid_x = sum(xs) / len(xs)
+            mid_y = sum(ys) / len(ys)
+            self.drawing.append(draw.Text(
+                text, self._font_size() * 0.8,
+                x=mid_x, y=mid_y - 10,
+                center=True,
+                font_family=self._font_family(),
+                fill=self._text_color(),
+            ))
+
     def add_line(
         self,
         x1: float, y1: float, x2: float, y2: float,

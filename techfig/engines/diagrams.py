@@ -4,7 +4,8 @@ This engine processes high-level diagram descriptions (lists of nodes and edges)
 and uses the SVGBuilder to generate the final graphic.
 
 Supported shapes: box, circle, diamond, ellipse, triangle.
-Standalone elements: text (free-floating labels), line (plain lines).
+Standalone elements: text (free-floating labels), line (plain lines),
+arrow (free-form arrow by coordinates), path (multi-segment polyline/curve).
 Connections: arrow (with arrowhead), connection (plain line between elements).
 """
 from typing import Dict, List, Any, Optional
@@ -16,6 +17,8 @@ from techfig.components.standard import render_schemdraw_component
 
 # Shapes the engine can render as nodes
 SUPPORTED_SHAPES = ("box", "circle", "diamond", "ellipse", "triangle")
+# Path-like standalone elements (not anchored to a node id)
+SUPPORTED_PATHS = ("line", "arrow", "path")
 
 
 def create_diagram(
@@ -37,6 +40,9 @@ def create_diagram(
             - shape nodes: ``id``, ``x``, ``y`` + shape-specific (w/h, r, rx/ry)
             - ``text``: ``x``, ``y``, ``text`` + optional ``font_size``
             - ``line``: ``x1``, ``y1``, ``x2``, ``y2``
+            - ``arrow``: ``x1``, ``y1``, ``x2``, ``y2`` + optional ``curve``
+            - ``path``: ``points`` (list of [x,y] or [x,y,cmd]) + optional
+              ``closed`` (bool), ``arrowhead`` ("none"|"end"|"start"|"both")
             All can include: ``color``, ``stroke_dash``, ``fill_opacity``, ``rotation``
         connections: List of connection dicts with ``from``, ``to``, and optionally
             ``label``, ``route`` (straight|orthogonal), ``color``, ``style`` (arrow|line),
@@ -115,6 +121,42 @@ def create_diagram(
                 text=text, stroke_color=color, **style_kw,
             )
 
+        elif el_type == "arrow":
+            # Free-form arrow by explicit coordinates (not anchored to ids).
+            # Required: x1, y1, x2, y2. Optional: curve, label via `text`.
+            curve = el.get("curve")
+            builder.add_arrow_xy(
+                float(el.get("x1", 0)), float(el.get("y1", 0)),
+                float(el.get("x2", 100)), float(el.get("y2", 0)),
+                text=text, stroke_color=color,
+                curve=float(curve) if curve is not None else None,
+                **style_kw,
+            )
+
+        elif el_type == "path":
+            # Multi-segment polyline/curve from a `points` list.
+            # Each entry: [x, y] or [x, y, "M|L|Q|C"]. Q consumes one extra
+            # control point, C consumes two. Optional: closed, arrowhead.
+            raw_points = el.get("points", [])
+            if not raw_points or len(raw_points) < 2:
+                raise ValueError(
+                    f"path element '{el_id}' needs a 'points' list with at least 2 entries"
+                )
+            points = []
+            for p in raw_points:
+                if not isinstance(p, (list, tuple)) or len(p) < 2:
+                    raise ValueError(
+                        f"path element '{el_id}': each point must be [x, y] or [x, y, cmd]"
+                    )
+                points.append(tuple(float(v) if i < 2 else v for i, v in enumerate(p)))
+            builder.add_path(
+                points,
+                text=text, stroke_color=color,
+                closed=bool(el.get("closed", False)),
+                arrowhead=el.get("arrowhead", "none"),
+                **style_kw,
+            )
+
         else:
             # Try component registry for custom/lab-folder components
             registry = get_registry()
@@ -137,7 +179,8 @@ def create_diagram(
             else:
                 raise ValueError(
                     f"Unknown element type: '{el_type}'. "
-                    f"Supported: {', '.join(SUPPORTED_SHAPES)}, text, line, or any registered component."
+                    f"Supported: {', '.join(SUPPORTED_SHAPES)}, text, line, arrow, path, "
+                    f"or any registered component."
                 )
 
 

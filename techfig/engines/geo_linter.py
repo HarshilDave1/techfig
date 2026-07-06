@@ -43,13 +43,22 @@ def snap_to_grid(spec: Dict[str, Any], grid_size: float = 20.0) -> Dict[str, Any
             return val
         return round(float(val) / grid_size) * grid_size
 
-    keys_to_snap = ["x", "y", "w", "h", "r", "rx", "ry", "x1", "y1", "x2", "y2"]
-    
+    keys_to_snap = ["x", "y", "w", "h", "r", "rx", "ry", "x1", "y1", "x2", "y2", "curve"]
+
     for el in new_spec.get("elements", []):
         for k in keys_to_snap:
             if k in el and _is_numeric(el[k]):
                 el[k] = snap(el[k])
-                
+        # Snap path point coordinates too
+        if el.get("type") == "path" and isinstance(el.get("points"), list):
+            new_points = []
+            for p in el["points"]:
+                if isinstance(p, (list, tuple)):
+                    new_points.append([snap(v) if i < 2 and _is_numeric(v) else v for i, v in enumerate(p)])
+                else:
+                    new_points.append(p)
+            el["points"] = new_points
+
     return new_spec
 
 
@@ -115,14 +124,14 @@ def lint_spec(spec: Dict[str, Any], grid_size: float = 20.0, align_tolerance: fl
     overlap_issues = []
     
     # Check grid snapping
-    keys_to_check = ["x", "y", "w", "h", "x1", "y1", "x2", "y2", "r", "rx", "ry"]
+    keys_to_check = ["x", "y", "w", "h", "x1", "y1", "x2", "y2", "r", "rx", "ry", "curve"]
     total_checks = 0
     failed_grid_checks = 0
-    
+
     for el in all_els:
         type_str = el.get("type", "unknown")
         el_id = el.get("id", f"{type_str}_no_id")
-        
+
         for k in keys_to_check:
             if k in el and _is_numeric(el[k]):
                 total_checks += 1
@@ -134,6 +143,25 @@ def lint_spec(spec: Dict[str, Any], grid_size: float = 20.0, align_tolerance: fl
                     failed_grid_checks += 1
                     if dist > 2:  # Only complain if visibly off-grid
                         grid_issues.append(f"Element '{el_id}' {k}={val} is not aligned to {grid_size}px grid")
+
+        # Check path points
+        if type_str == "path" and isinstance(el.get("points"), list):
+            for idx, p in enumerate(el["points"]):
+                if not isinstance(p, (list, tuple)) or len(p) < 2:
+                    continue
+                for axis_idx, axis_name in enumerate(("px", "py")):
+                    v = p[axis_idx]
+                    if _is_numeric(v):
+                        total_checks += 1
+                        val = float(v)
+                        snapped = round(val / grid_size) * grid_size
+                        dist = abs(val - snapped)
+                        if dist > 1e-5:
+                            failed_grid_checks += 1
+                            if dist > 2:
+                                grid_issues.append(
+                                    f"Path '{el_id}' point[{idx}] {axis_name}={val} is not aligned to {grid_size}px grid"
+                                )
                         
     # Check alignment (almost aligned but not quite)
     for axis in ["x", "y"]:

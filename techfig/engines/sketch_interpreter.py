@@ -61,16 +61,23 @@ DIAGRAM_SCHEMA: Dict[str, Any] = {
                 "properties": {
                     "type": {
                         "type": "string",
-                        "enum": ["box", "circle", "diamond", "ellipse", "triangle", "text", "line"],
+                        "enum": ["box", "circle", "diamond", "ellipse", "triangle", "text", "line", "arrow", "path"],
                     },
                     "id": {"type": "string", "description": "Unique ID for connections"},
                     "text": {"type": "string"},
                     "x": {"type": "number"}, "y": {"type": "number"},
                     "w": {"type": "number"}, "h": {"type": "number"},
-                    "r": {"type": "number"},
-                    "rx": {"type": "number"}, "ry": {"type": "number"},
+                    "r": {"type": "number"}, "rx": {"type": "number"}, "ry": {"type": "number"},
                     "x1": {"type": "number"}, "y1": {"type": "number"},
                     "x2": {"type": "number"}, "y2": {"type": "number"},
+                    "curve": {"type": "number", "description": "Arrow curvature offset (quadratic Bezier)"},
+                    "points": {
+                        "type": "array",
+                        "description": "Path points: list of [x,y] or [x,y,cmd] where cmd is M/L/Q/C",
+                        "items": {"type": "array", "items": {"type": ["number", "string"]}},
+                    },
+                    "closed": {"type": "boolean", "description": "Close path with Z (outline)"},
+                    "arrowhead": {"type": "string", "enum": ["none", "end", "start", "both"]},
                     "color": {"type": "string"},
                     "direction": {"type": "string", "enum": ["up", "down", "left", "right"]},
                     "font_size": {"type": "number"},
@@ -112,15 +119,19 @@ and output a JSON specification that recreates it using clean geometric primitiv
 
 ## Available element types
 
+> **Note:** `arrow` and `path` below are *standalone* elements placed by absolute coordinates. Use the `connections` array (below) for arrows/lines that link two named element ids.
+
 | type | required fields | optional fields | notes |
 |------|----------------|-----------------|-------|
 | box | id, x, y | w, h, text, color, fill_opacity, stroke_dash, rotation | Rectangle (rounded corners). Default w=100, h=60 |
 | circle | id, x, y | r, text, color, fill_opacity, stroke_dash | Circle. Default r=40 |
 | ellipse | id, x, y | rx, ry, text, color, fill_opacity, stroke_dash, rotation | Ellipse/oval. Good for lenses, ovals |
 | diamond | id, x, y | w, h, text, color, fill_opacity | Diamond/decision node |
-| triangle | id, x, y | w, h, text, color, direction(up/down/left/right), fill_opacity | Triangle. Default 6060 |
+| triangle | id, x, y | w, h, text, color, direction(up/down/left/right), fill_opacity | Triangle. Default 60×60 |
 | text | x, y, text | id, font_size, color, rotation | Free-floating label (no shape). Use for annotations |
 | line | x1, y1, x2, y2 | text, color, stroke_dash | Plain line. stroke_dash="5,3" for dashed |
+| arrow | x1, y1, x2, y2 | text, color, stroke_dash, curve | Free-form arrow with arrowhead at (x2,y2). `curve` is a perpendicular offset in px for a quadratic Bezier bow (positive bows right of travel direction, negative left). Use for annotations/leader lines that don't anchor to a shape id |
+| path | points | text, color, stroke_dash, closed, arrowhead, fill_opacity | Multi-segment polyline/curve. `points` is a list of [x,y] or [x,y,cmd] where cmd is "M","L","Q" (next entry is control point), or "C" (next two entries are control points). `closed`: true closes the outline (Z). `arrowhead`: "none" (default), "end", "start", or "both". Use for wavy lines, brackets, curved annotations, custom outlines |
 
 ## Connections (arrows and lines between elements)
 
@@ -173,8 +184,10 @@ Return ONLY valid JSON (no markdown fences, no explanation):
   "connections": [...]
 }
  
-IMPORTANT: Every element MUST include a "type" field matching one of the types listed above (e.g. "box", "circle", "text", "line", "diamond", "ellipse", "triangle").
+IMPORTANT: Every element MUST include a "type" field matching one of the types listed above (e.g. "box", "circle", "text", "line", "arrow", "path", "diamond", "ellipse", "triangle").
 Example element with type: {"type": "box", "id": "mybox", "x": 0, "y": 0, "w": 100, "h": 60, "text": "Box", "color": "#0072B2", "fill_opacity": 1.0}
+Example arrow: {"type": "arrow", "x1": -50, "y1": 0, "x2": 50, "y2": 0, "text": "flow", "color": "#333"}
+Example path: {"type": "path", "points": [[0,0], [50,0,"Q"], [75,-20], [100,0]], "closed": false, "arrowhead": "end"}
 Do NOT omit the "type" field from any element.
 """
 
