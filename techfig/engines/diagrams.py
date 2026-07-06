@@ -68,28 +68,36 @@ def create_diagram(
             builder.add_box(
                 float(el.get("x", 0)), float(el.get("y", 0)),
                 float(el.get("w", 120)), float(el.get("h", 60)),
-                text=text, element_id=el_id, color=color, **style_kw,
+                text=text, element_id=el_id, color=color,
+                stroke_color=el.get("stroke_color", "stroke"),
+                **style_kw,
             )
 
         elif el_type == "circle":
             builder.add_circle(
                 float(el.get("x", 0)), float(el.get("y", 0)),
                 float(el.get("r", 40)),
-                text=text, element_id=el_id, color=color, **style_kw,
+                text=text, element_id=el_id, color=color,
+                stroke_color=el.get("stroke_color", "stroke"),
+                **style_kw,
             )
 
         elif el_type == "diamond":
             builder.add_diamond(
                 float(el.get("x", 0)), float(el.get("y", 0)),
                 float(el.get("w", 100)), float(el.get("h", 80)),
-                text=text, element_id=el_id, color=color, **style_kw,
+                text=text, element_id=el_id, color=color,
+                stroke_color=el.get("stroke_color", "stroke"),
+                **style_kw,
             )
 
         elif el_type == "ellipse":
             builder.add_ellipse(
                 float(el.get("x", 0)), float(el.get("y", 0)),
                 float(el.get("rx", 60)), float(el.get("ry", 30)),
-                text=text, element_id=el_id, color=color, **style_kw,
+                text=text, element_id=el_id, color=color,
+                stroke_color=el.get("stroke_color", "stroke"),
+                **style_kw,
             )
 
         elif el_type == "triangle":
@@ -98,6 +106,7 @@ def create_diagram(
                 float(el.get("w", 80)), float(el.get("h", 70)),
                 text=text, element_id=el_id, color=color,
                 direction=el.get("direction", "up"), **style_kw,
+                stroke_color=el.get("stroke_color", "stroke"),
             )
 
         elif el_type == "text":
@@ -112,7 +121,7 @@ def create_diagram(
             builder.add_line(
                 float(el.get("x1", 0)), float(el.get("y1", 0)),
                 float(el.get("x2", 100)), float(el.get("y2", 0)),
-                text=text, stroke_color=color, **style_kw,
+                text=text, stroke_color=el.get("stroke_color", color), **style_kw,
             )
 
         else:

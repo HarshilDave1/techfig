@@ -106,6 +106,16 @@ class SVGBuilder:
     def _text_color(self) -> str:
         return str(self.style.get("colors", {}).get("text", "#000000"))
 
+    def _stroke_color(self, color_key: str = "stroke") -> str:
+        """Resolve a stroke color key, falling back to the configured stroke.
+
+        Semantic keys use the style color map; raw hex values are passed through.
+        The special key ``stroke`` maps to the configured outline color.
+        """
+        if color_key == "stroke":
+            return str(self.style.get("stroke", "#333333"))
+        return self._resolve_color(color_key)
+
     def _extract_style_kwargs(self, kwargs: dict, default_fill_opacity: float = DEFAULT_FILL_OPACITY) -> tuple[dict, dict]:
         """Extract custom style keys from kwargs and return (style_attrs, cleaned_kwargs).
 
@@ -161,13 +171,14 @@ class SVGBuilder:
         """Add a labeled rectangular node."""
         rotation = kwargs.get("rotation", 0)
         fill = self._resolve_color(color)
+        stroke = self._stroke_color(kwargs.pop("stroke_color", "stroke"))
         style_attrs, kwargs = self._extract_style_kwargs(kwargs)
         group = draw.Group(id=element_id) if element_id else draw.Group()
 
         rect = draw.Rectangle(
             x - w / 2, y - h / 2, w, h,
             fill=fill,
-            stroke=fill,
+            stroke=stroke,
             stroke_width=self._stroke_width(),
             rx=5, ry=5,
             **style_attrs,
@@ -198,13 +209,14 @@ class SVGBuilder:
         """Add a labeled circular node."""
         rotation = kwargs.get("rotation", 0)
         fill = self._resolve_color(color)
+        stroke = self._stroke_color(kwargs.pop("stroke_color", "stroke"))
         style_attrs, kwargs = self._extract_style_kwargs(kwargs)
         group = draw.Group(id=element_id) if element_id else draw.Group()
 
         group.append(draw.Circle(
             x, y, r,
             fill=fill,
-            stroke=fill,
+            stroke=stroke,
             stroke_width=self._stroke_width(),
             **style_attrs,
             **kwargs,
@@ -233,6 +245,7 @@ class SVGBuilder:
         """Add a labeled diamond (decision) node."""
         rotation = kwargs.get("rotation", 0)
         fill = self._resolve_color(color)
+        stroke = self._stroke_color(kwargs.pop("stroke_color", "stroke"))
         style_attrs, kwargs = self._extract_style_kwargs(kwargs)
         group = draw.Group(id=element_id) if element_id else draw.Group()
 
@@ -243,7 +256,7 @@ class SVGBuilder:
             x, y + hh,      # bottom
             x - hw, y,      # left
             fill=fill,
-            stroke=fill,
+            stroke=stroke,
             stroke_width=self._stroke_width(),
             close=True,
             **style_attrs,
@@ -274,13 +287,14 @@ class SVGBuilder:
         """Add a labeled elliptical node (lenses, ovals, etc.)."""
         rotation = kwargs.get("rotation", 0)
         fill = self._resolve_color(color)
+        stroke = self._stroke_color(kwargs.pop("stroke_color", "stroke"))
         style_attrs, kwargs = self._extract_style_kwargs(kwargs)
         group = draw.Group(id=element_id) if element_id else draw.Group()
 
         group.append(draw.Ellipse(
             x, y, rx, ry,
             fill=fill,
-            stroke=fill,
+            stroke=stroke,
             stroke_width=self._stroke_width(),
             **style_attrs,
             **kwargs,
@@ -313,6 +327,7 @@ class SVGBuilder:
         """
         rotation = kwargs.get("rotation", 0)
         fill = self._resolve_color(color)
+        stroke = self._stroke_color(kwargs.pop("stroke_color", "stroke"))
         style_attrs, kwargs = self._extract_style_kwargs(kwargs)
         group = draw.Group(id=element_id) if element_id else draw.Group()
 
@@ -328,7 +343,7 @@ class SVGBuilder:
         tri = draw.Lines(
             *pts,
             fill=fill,
-            stroke=fill,
+            stroke=stroke,
             stroke_width=self._stroke_width(),
             close=True,
             **style_attrs,
