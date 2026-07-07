@@ -7,7 +7,8 @@ Supported shapes: box, circle, diamond, ellipse, triangle.
 Standalone elements: text (free-floating labels), line (plain lines),
 arrow (free-form arrow by coordinates), path (multi-segment polyline/curve),
 callout (anchored label with leader line),
-legend (bordered panel with swatch+label rows).
+legend (bordered panel with swatch+label rows),
+plot (inline matplotlib chart embedded as a nested SVG).
 Connections: arrow (with arrowhead), connection (plain line between elements).
 """
 from typing import Dict, List, Any, Optional
@@ -193,6 +194,9 @@ def create_diagram(
               ``font_size``, ``color``
             - ``legend``: ``x``, ``y``, ``w``, ``h``, ``entries`` (list of
               ``{"label": str, "color": str}`` dicts) + optional ``title``
+            - ``plot``: ``x``, ``y``, ``w``, ``h`` + ``chart`` dict
+              (``type``, ``data``, and optional ``x_col``/``y_col``/``hue_col``/
+              ``title``/``xlabel``/``ylabel``/``style``/``style_overrides``)
             All can include: ``color``, ``stroke_dash``, ``fill_opacity``, ``rotation``
         connections: List of connection dicts with ``from``, ``to``, and optionally
             ``label``, ``route`` (straight|orthogonal), ``color``, ``style`` (arrow|line),
@@ -401,6 +405,20 @@ def create_diagram(
                 color=color,
                 swatch_shape=el.get("swatch_shape", "rect"),
                 **style_kw,
+            )
+
+        elif el_type == "plot":
+            chart_spec = el.get("chart")
+            if not isinstance(chart_spec, dict):
+                raise ValueError(
+                    "plot element requires a 'chart' dict with 'type' and 'data'"
+                )
+            builder.add_plot(
+                float(el.get("x", 0)), float(el.get("y", 0)),
+                float(el.get("w", 300)), float(el.get("h", 200)),
+                chart_spec=chart_spec,
+                text=text, element_id=el_id,
+                style_name=el.get("style", "nature"),
             )
 
         else:

@@ -8,6 +8,7 @@ callout (anchored label with leader line).
 All shapes accept optional styling: stroke_dash, fill_opacity, rotation.
 """
 import logging
+import re
 from typing import Dict, Any, Iterable, Optional, Sequence, Tuple, Union
 
 import drawsvg as draw
@@ -545,6 +546,118 @@ class SVGBuilder:
         wrapper = f'<svg x="{cx}" y="{cy}" width="{w}" height="{h}">{raw_svg}</svg>'
         raw_elem = draw.Raw(wrapper)
         group.append(raw_elem)
+
+        if text:
+            group.append(draw.Text(
+                text, self._font_size(),
+                x=x, y=y + h / 2 + self._font_size(), center=True,
+                font_family=self._font_family(),
+                fill=self._text_color(),
+            ))
+
+        self.drawing.append(group)
+        if element_id:
+            self._elements[element_id] = (x, y, w, h)
+
+    def add_plot(
+        self,
+        x: float, y: float, w: float, h: float,
+        chart_spec: Dict[str, Any],
+        text: str = "",
+        element_id: str = "",
+        style_name: str = "nature",
+        **kwargs,
+    ) -> None:
+        """Render a matplotlib chart inline and embed it in the SVG.
+
+        The chart is rendered to an SVG string via the figures engine
+        (``create_chart`` with the Agg backend) and embedded as a nested
+        ``<svg>`` element scaled to fit ``w x h``, centered at ``(x, y)``.
+        This lets a diagram contain real data plots as first-class elements
+        that other elements can connect to with arrows.
+
+        Args:
+            x, y: Center coordinates of the plot panel.
+            w, h: Width and height of the plot panel (SVG user units).
+            chart_spec: Dict forwarded to ``create_chart``. Required keys:
+                ``type`` (chart type), ``data`` (path, DataFrame, dict, or
+                list). Optional: ``x_col``, ``y_col``, ``hue_col``,
+                ``title``, ``xlabel``, ``ylabel``, ``style_overrides``.
+            text: Optional caption drawn below the plot panel.
+            element_id: If set, registers the panel bounds so arrows can
+                connect to it.
+            style_name: Base style preset for the embedded chart.
+            **kwargs: Reserved for future styling (currently unused).
+        """
+        # Local import to avoid a matplotlib import at module load time
+        # for users who never use the plot element.
+        import io
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from techfig.engines.figures import create_chart, CHART_TYPES
+
+        chart_type = chart_spec.get("type", "bar")
+        if chart_type not in CHART_TYPES:
+            raise ValueError(
+                f"Unsupported plot chart type: '{chart_type}'. "
+                f"Supported types: {', '.join(CHART_TYPES)}"
+            )
+
+        chart_data = chart_spec.get("data")
+        if chart_data is None:
+            raise ValueError("plot element requires 'data' in chart_spec")
+
+        # Render onto our own figure/ax so we control the SVG output and
+        # can close the figure explicitly (create_chart with output_path=""
+        # and no ax leaks its figure and returns "").
+        fig, ax = plt.subplots()
+        create_chart(
+            data=chart_data,
+            chart_type=chart_type,
+            output_path="",
+            title=chart_spec.get("title", ""),
+            x_col=chart_spec.get("x_col"),
+            y_col=chart_spec.get("y_col"),
+            hue_col=chart_spec.get("hue_col"),
+            xlabel=chart_spec.get("xlabel"),
+            ylabel=chart_spec.get("ylabel"),
+            style_name=chart_spec.get("style", style_name),
+            style_overrides=chart_spec.get("style_overrides"),
+            ax=ax,
+        )
+        buf = io.StringIO()
+        fig.savefig(buf, format="svg", bbox_inches="tight")
+        plt.close(fig)
+        raw_svg = buf.getvalue()
+
+        # Strip the outer <?xml ...?> and <!DOCTYPE> declarations.
+        # Then pull the inner SVG content into a transformed group so it
+        # behaves like a native diagram element when embedded.
+        inner = re.sub(r"<\?xml.*?\?>\s*", "", raw_svg, count=1, flags=re.DOTALL)
+        inner = re.sub(r"<!DOCTYPE.*?>\s*", "", inner, count=1, flags=re.DOTALL)
+        inner = inner.strip()
+
+        viewbox = re.search(r'viewBox="([^"]+)"', inner)
+        if viewbox:
+            _, _, vb_w, vb_h = (float(v) for v in viewbox.group(1).split())
+        else:
+            vb_w, vb_h = w, h
+        scale_x = w / vb_w if vb_w else 1.0
+        scale_y = h / vb_h if vb_h else 1.0
+
+        svg_open = re.search(r"<svg[^>]*>", inner)
+        if not svg_open:
+            raise ValueError("matplotlib plot did not produce an SVG root")
+        inner_body = inner[svg_open.end():]
+        inner_body = re.sub(r"</svg>\s*$", "", inner_body, count=1)
+
+        group = draw.Group(id=element_id) if element_id else draw.Group()
+
+        cx = x - w / 2
+        cy = y - h / 2
+        wrapper = f'<g transform="translate({cx},{cy}) scale({scale_x},{scale_y})">{inner_body}</g>'
+        group.append(draw.Raw(wrapper))
 
         if text:
             group.append(draw.Text(
