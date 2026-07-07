@@ -5,6 +5,7 @@ scientific diagrams easier, with built-in styling and layout helpers.
 
 Supported shapes: box, circle, diamond, ellipse, triangle, line, text,
 callout (anchored label with leader line).
+Text blocks: add_textblock for multi-line wrapped text inside a panel background.
 All shapes accept optional styling: stroke_dash, fill_opacity, rotation.
 """
 import logging
@@ -699,6 +700,104 @@ class SVGBuilder:
         if element_id:
             approx_w = _text_width(text, self._font_family(), size)
             self._elements[element_id] = (x, y, approx_w, size)
+
+    def add_textblock(
+        self,
+        x: float, y: float, w: float, h: float,
+        text: str, element_id: str = "",
+        color: str = "primary",
+        align: str = "left",
+        padding: float = 12.0,
+        line_height: float = 1.3,
+        font_size: Optional[float] = None,
+        **kwargs,
+    ) -> None:
+        """Add a multi-line text block with a panel (rounded-rectangle) background.
+
+        The text is word-wrapped to fit ``w - 2*padding`` using an approximate
+        glyph width of ``0.6 * font_size``. Explicit ``\\n`` newlines in ``text``
+        are preserved. Lines are top-aligned within the panel and left/center/right
+        aligned horizontally per ``align``.
+
+        Args:
+            x, y: Center of the panel.
+            w, h: Panel width and height.
+            text: Body text. Newlines start a new line; long lines are wrapped.
+            element_id: Optional id (registered for arrow connections).
+            color: Semantic color key (or hex) for the panel fill/stroke.
+            align: "left", "center", or "right" text alignment inside the panel.
+            padding: Inner padding between panel edge and text (px).
+            line_height: Line height multiplier of font_size.
+            font_size: Override style font_size for this block.
+            **kwargs: Accepts stroke_dash, fill_opacity, stroke_opacity, rotation.
+        """
+        rotation = kwargs.get("rotation", 0)
+        fill = self._resolve_color(color)
+        size = font_size or self._font_size()
+        style_attrs, kwargs = self._extract_style_kwargs(kwargs)
+        group = draw.Group(id=element_id) if element_id else draw.Group()
+
+        # 1. Panel background (rounded rect, light fill + colored stroke).
+        panel = draw.Rectangle(
+            x - w / 2, y - h / 2, w, h,
+            fill=fill,
+            stroke=fill,
+            stroke_width=self._stroke_width(),
+            rx=6, ry=6,
+            **style_attrs,
+            **kwargs,
+        )
+        group.append(panel)
+
+        # 2. Word-wrap text to the available width.
+        max_chars = max(1, int((w - 2 * padding) / (size * 0.6)))
+        wrapped: list[str] = []
+        for raw_line in text.split("\n"):
+            if not raw_line.strip():
+                wrapped.append("")
+                continue
+            words = raw_line.split()
+            cur = ""
+            for word in words:
+                candidate = word if not cur else f"{cur} {word}"
+                if len(candidate) > max_chars and cur:
+                    wrapped.append(cur)
+                    cur = word
+                else:
+                    cur = candidate
+            wrapped.append(cur)
+
+        # 3. Stack the wrapped lines vertically (top-aligned within panel).
+        line_dy = size * line_height
+        total_h = len(wrapped) * line_dy
+        top_y = y - h / 2 + padding + size / 2
+        # Shift so the block is vertically centered when it's shorter than h.
+        if total_h < h - 2 * padding:
+            top_y += ((h - 2 * padding) - total_h) / 2
+
+        anchor = {"left": "start", "center": "middle", "right": "end"}[align]
+        if align == "left":
+            tx = x - w / 2 + padding
+        elif align == "right":
+            tx = x + w / 2 - padding
+        else:
+            tx = x
+
+        for i, line in enumerate(wrapped):
+            if line:
+                group.append(draw.Text(
+                    line, size,
+                    x=tx, y=top_y + i * line_dy,
+                    font_family=self._font_family(),
+                    fill=self._text_color(),
+                    text_anchor=anchor,
+                    dominant_baseline="central",
+                ))
+
+        _apply_rotation(group, x, y, rotation)
+        self.drawing.append(group)
+        if element_id:
+            self._elements[element_id] = (x, y, w, h)
 
     def add_line(
         self,

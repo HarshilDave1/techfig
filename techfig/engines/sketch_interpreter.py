@@ -61,7 +61,7 @@ DIAGRAM_SCHEMA: Dict[str, Any] = {
                 "properties": {
                     "type": {
                         "type": "string",
-                        "enum": ["box", "circle", "diamond", "ellipse", "triangle", "text", "line", "arrow", "path", "callout", "legend"],
+                        "enum": ["box", "circle", "diamond", "ellipse", "triangle", "text", "textblock", "line", "arrow", "path", "callout", "legend"],
                     },
                     "id": {"type": "string", "description": "Unique ID for connections"},
                     "text": {"type": "string"},
@@ -84,6 +84,9 @@ DIAGRAM_SCHEMA: Dict[str, Any] = {
                     "anchor_y": {"type": "number"},
                     "anchor": {"type": "string"},
                     "direction": {"type": "string", "enum": ["up", "down", "left", "right"]},
+                    "align": {"type": "string", "enum": ["left", "center", "right"]},
+                    "padding": {"type": "number"},
+                    "line_height": {"type": "number"},
                     "font_size": {"type": "number"},
                     "stroke_dash": {"type": "string"},
                     "fill_opacity": {"type": "number"},
@@ -148,6 +151,7 @@ and output a JSON specification that recreates it using clean geometric primitiv
 | diamond | id, x, y | w, h, text, color, stroke_color, fill_opacity | Diamond/decision node |
 | triangle | id, x, y | w, h, text, color, stroke_color, direction(up/down/left/right), fill_opacity | Triangle. Default 60×60 |
 | text | x, y, text | id, font_size, color, rotation | Free-floating label (no shape). Use for annotations |
+| textblock | x, y, w, h, text | id, align, padding, line_height, font_size, color, fill_opacity, stroke_dash, rotation | Multi-line wrapped text inside a panel background |
 | line | x1, y1, x2, y2 | text, color, stroke_dash | Plain line. stroke_dash="5,3" for dashed |
 | arrow | x1, y1, x2, y2 | text, color, stroke_dash, curve | Free-form arrow with arrowhead at (x2,y2). `curve` is a perpendicular offset in px for a quadratic Bezier bow (positive bows right of travel direction, negative left). Use for annotations/leader lines that don't anchor to a shape id |
 | path | points | text, color, stroke_dash, closed, arrowhead, fill_opacity | Multi-segment polyline/curve. `points` is a list of [x,y] or [x,y,cmd] where cmd is "M","L","Q" (next entry is control point), or "C" (next two entries are control points). `closed`: true closes the outline (Z). `arrowhead`: "none" (default), "end", "start", or "both". Use for wavy lines, brackets, curved annotations, custom outlines |

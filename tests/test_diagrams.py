@@ -1,7 +1,7 @@
 """Test the diagram engine by generating sample SVGs."""
 import os
 import pytest
-from techfig.engines.diagrams import create_flowchart
+from techfig.engines.diagrams import create_flowchart, create_diagram
 from techfig.utils.svg_builder import SVGBuilder
 
 
@@ -317,3 +317,41 @@ def test_diagram_legend_in_schema_enum():
     # prompt documents the legend type
     assert "| legend |" in SKETCH_PROMPT
     assert "legend" in SKETCH_PROMPT.split("IMPORTANT")[1]
+
+
+def test_textblock_element_renders_and_wraps(tmp_path):
+    out = str(tmp_path / "textblock.svg")
+    elements = [
+        {
+            "type": "textblock",
+            "id": "note",
+            "x": 0,
+            "y": 0,
+            "w": 240,
+            "h": 140,
+            "text": "This is a long text block that should wrap into multiple lines.\nSecond paragraph stays separate.",
+            "color": "secondary",
+            "align": "left",
+            "padding": 10,
+        },
+    ]
+    result = create_diagram(elements, [], out)
+    assert os.path.exists(result)
+    content = open(result).read()
+    assert "<svg" in content
+    assert "text-anchor=\"start\"" in content
+    assert "rx=\"6\"" in content
+    assert "This is a long" in content
+    assert "that should wrap into" in content
+    assert "multiple lines." in content
+    assert "Second paragraph" in content
+
+
+def test_textblock_alignment_center_and_right(tmp_path):
+    builder = SVGBuilder(width=300, height=200)
+    builder.add_textblock(0, 0, 180, 90, "Center aligned", align="center", element_id="c")
+    builder.add_textblock(0, 120, 180, 90, "Right aligned", align="right", element_id="r")
+    svg = builder.get_svg_string()
+    assert svg.count("<text") == 2
+    assert 'text-anchor="middle"' in svg
+    assert 'text-anchor="end"' in svg
