@@ -88,6 +88,21 @@ DIAGRAM_SCHEMA: Dict[str, Any] = {
                     "stroke_dash": {"type": "string"},
                     "fill_opacity": {"type": "number"},
                     "rotation": {"type": "number"},
+                    "title": {"type": "string", "description": "Legend panel heading"},
+                    "swatch_shape": {"type": "string", "enum": ["rect", "circle"], "description": "Legend default swatch shape"},
+                    "entries": {
+                        "type": "array",
+                        "description": "Legend rows: list of {label, color, swatch_shape?}",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "label": {"type": "string"},
+                                "color": {"type": "string"},
+                                "swatch_shape": {"type": "string", "enum": ["rect", "circle"]},
+                            },
+                            "required": ["label", "color"],
+                        },
+                    },
                 },
                 "required": ["type"],
             },
@@ -137,6 +152,7 @@ and output a JSON specification that recreates it using clean geometric primitiv
 | arrow | x1, y1, x2, y2 | text, color, stroke_dash, curve | Free-form arrow with arrowhead at (x2,y2). `curve` is a perpendicular offset in px for a quadratic Bezier bow (positive bows right of travel direction, negative left). Use for annotations/leader lines that don't anchor to a shape id |
 | path | points | text, color, stroke_dash, closed, arrowhead, fill_opacity | Multi-segment polyline/curve. `points` is a list of [x,y] or [x,y,cmd] where cmd is "M","L","Q" (next entry is control point), or "C" (next two entries are control points). `closed`: true closes the outline (Z). `arrowhead`: "none" (default), "end", "start", or "both". Use for wavy lines, brackets, curved annotations, custom outlines |
 | callout | x, y, text | anchor_x, anchor_y (or anchor=element id), id, color, font_size, stroke_dash, rotation | Anchored label with a leader line from the anchor point to the label, plus a small anchor dot. Use to annotate a specific point or element. If `anchor` is an element id, the leader attaches to that element's boundary; if `anchor_x`/`anchor_y` are given they pin the leader to that coordinate. |
+| legend | x, y | w, h, id, title, color, entries, swatch_shape, stroke_dash, fill_opacity, rotation | Bordered panel with swatch+label rows. `entries` is a list of {label, color, swatch_shape?}. `swatch_shape` defaults to "rect" (or "circle"). Good for color keys |
 
 ## Connections (arrows and lines between elements)
 
@@ -192,7 +208,7 @@ Return ONLY valid JSON (no markdown fences, no explanation):
   "connections": [...]
 }
 
-IMPORTANT: Every element MUST include a "type" field matching one of the types listed above (e.g. "box", "circle", "text", "line", "arrow", "path", "callout", "diamond", "ellipse", "triangle").
+IMPORTANT: Every element MUST include a "type" field matching one of the types listed above (e.g. "box", "circle", "text", "line", "arrow", "path", "callout", "diamond", "ellipse", "triangle", "legend").
 Example element with type: {"type": "box", "id": "mybox", "x": 0, "y": 0, "w": 100, "h": 60, "text": "Box", "color": "#0072B2", "fill_opacity": 1.0}
 Example arrow: {"type": "arrow", "x1": -50, "y1": 0, "x2": 50, "y2": 0, "text": "flow", "color": "#333"}
 Example path: {"type": "path", "points": [[0,0], [50,0,"Q"], [75,-20], [100,0]], "closed": false, "arrowhead": "end"}
