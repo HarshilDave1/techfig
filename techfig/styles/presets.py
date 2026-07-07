@@ -193,6 +193,123 @@ MINIMAL_STYLE: Dict[str, Any] = {
     },
 }
 
+# ---- Material-inspired styles -------------------------------------------
+
+METAL_STYLE: Dict[str, Any] = {
+    **NATURE_STYLE,
+    "font_family": "DejaVu Sans, Liberation Sans, sans-serif",
+    "colors": {
+        "primary": "#6B7280",
+        "secondary": "#9CA3AF",
+        "accent": "#D1D5DB",
+        "warning": "#F59E0B",
+        "muted": "#4B5563",
+        "background": "#F3F4F6",
+        "text": "#111827",
+        "stroke": "#374151",
+    },
+    "axes.facecolor": "#F3F4F6",
+    "figure.facecolor": "#F3F4F6",
+    "axes.edgecolor": "#374151",
+    "axes.labelcolor": "#111827",
+    "xtick.color": "#374151",
+    "ytick.color": "#374151",
+    "text.color": "#111827",
+    "grid.color": "#D1D5DB",
+}
+
+SEMICONDUCTOR_STYLE: Dict[str, Any] = {
+    **NATURE_STYLE,
+    "font_family": "DejaVu Sans, Liberation Sans, sans-serif",
+    "colors": {
+        "primary": "#2563EB",
+        "secondary": "#7C3AED",
+        "accent": "#06B6D4",
+        "warning": "#F59E0B",
+        "muted": "#94A3B8",
+        "background": "#F8FAFC",
+        "text": "#0F172A",
+        "stroke": "#1E3A8A",
+    },
+    "axes.facecolor": "#F8FAFC",
+    "figure.facecolor": "#F8FAFC",
+    "axes.edgecolor": "#1E3A8A",
+    "axes.labelcolor": "#0F172A",
+    "xtick.color": "#1E3A8A",
+    "ytick.color": "#1E3A8A",
+    "text.color": "#0F172A",
+    "grid.color": "#DBEAFE",
+}
+
+GLASS_STYLE: Dict[str, Any] = {
+    **NATURE_STYLE,
+    "font_family": "DejaVu Sans, Liberation Sans, sans-serif",
+    "colors": {
+        "primary": "#38BDF8",
+        "secondary": "#0EA5E9",
+        "accent": "#7DD3FC",
+        "warning": "#FBBF24",
+        "muted": "#94A3B8",
+        "background": "#F8FCFF",
+        "text": "#0F172A",
+        "stroke": "#7DD3FC",
+    },
+    "axes.facecolor": "#F8FCFF",
+    "figure.facecolor": "#F8FCFF",
+    "axes.edgecolor": "#7DD3FC",
+    "axes.labelcolor": "#0F172A",
+    "xtick.color": "#475569",
+    "ytick.color": "#475569",
+    "text.color": "#0F172A",
+    "grid.color": "#E0F2FE",
+}
+
+DIELECTRIC_STYLE: Dict[str, Any] = {
+    **NATURE_STYLE,
+    "font_family": "DejaVu Sans, Liberation Sans, sans-serif",
+    "colors": {
+        "primary": "#8B5CF6",
+        "secondary": "#C084FC",
+        "accent": "#A78BFA",
+        "warning": "#F59E0B",
+        "muted": "#A1A1AA",
+        "background": "#FAF5FF",
+        "text": "#3B0764",
+        "stroke": "#7C3AED",
+    },
+    "axes.facecolor": "#FAF5FF",
+    "figure.facecolor": "#FAF5FF",
+    "axes.edgecolor": "#7C3AED",
+    "axes.labelcolor": "#3B0764",
+    "xtick.color": "#6B21A8",
+    "ytick.color": "#6B21A8",
+    "text.color": "#3B0764",
+    "grid.color": "#F3E8FF",
+}
+
+SUBSTRATE_STYLE: Dict[str, Any] = {
+    **NATURE_STYLE,
+    "font_family": "DejaVu Sans, Liberation Sans, sans-serif",
+    "colors": {
+        "primary": "#B45309",
+        "secondary": "#D97706",
+        "accent": "#F59E0B",
+        "warning": "#EA580C",
+        "muted": "#A8A29E",
+        "background": "#FFFBEB",
+        "text": "#451A03",
+        "stroke": "#92400E",
+    },
+    "axes.facecolor": "#FFFBEB",
+    "figure.facecolor": "#FFFBEB",
+    "axes.edgecolor": "#92400E",
+    "axes.labelcolor": "#451A03",
+    "xtick.color": "#78350F",
+    "ytick.color": "#78350F",
+    "text.color": "#451A03",
+    "grid.color": "#FDE68A",
+}
+
 # ---- Registry -----------------------------------------------------------
 
 _BUILT_IN_STYLES: Dict[str, Dict[str, Any]] = {
@@ -204,6 +321,11 @@ _BUILT_IN_STYLES: Dict[str, Dict[str, Any]] = {
     "dark": DARK_STYLE,
     "presentation": PRESENTATION_STYLE,
     "minimal": MINIMAL_STYLE,
+    "metal": METAL_STYLE,
+    "semiconductor": SEMICONDUCTOR_STYLE,
+    "glass": GLASS_STYLE,
+    "dielectric": DIELECTRIC_STYLE,
+    "substrate": SUBSTRATE_STYLE,
 }
 
 

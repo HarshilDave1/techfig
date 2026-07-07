@@ -1,0 +1,75 @@
+{
+  "canvas": {"width": 1400, "height": 1050},
+  "style": {
+    "font_family": "DejaVu Sans, Liberation Sans, sans-serif",
+    "font_size": 14,
+    "stroke_width": 2,
+    "colors": {
+      "primary": "#2563EB",
+      "secondary": "##7C3AED",
+      "accent": "#06B6D4",
+      "warning": "#F59E0B",
+      "muted": "#94A3B8",
+      "background": "#F8FAFC",
+      "text": "#0F172A",
+      "stroke": "#1E3A8A"
+    }
+  },
+  "elements": [
+    {"type": "text", "x": 0, "y": -450, "text": "Silicon Solar Cell Cross-Section", "font_size": 28, "color": "#0F172A"},
+    {"type": "text", "x": 0, "y": -410, "text": "Layer stack with photon absorption and carrier collection", "font_size": 16, "color": "#475569"},
+
+    {"type": "box", "id": "glass", "x": 0, "y": -310, "w": 600, "h": 60, "text": "Glass cover (ARC)", "color": "#38BDF8", "stroke_color": "#0EA5E9", "fill_opacity": 0.35},
+    {"type": "box", "id": "arc", "x": 0, "y": -230, "w": 600, "h": 35, "text": "TiO2 ARC", "color": "#A78BFA", "stroke_color": "#7C3AED", "fill_opacity": 0.55},
+    {"type": "box", "id": "emitter", "x": 0, "y": -170, "w": 600, "h": 60, "text": "n+ emitter (Si)", "color": "#2563EB", "stroke_color": "#1E3A8A", "fill_opacity": 0.75},
+    {"type": "box", "id": "base", "x": 0, "y": -60, "w": 600, "h": 160, "text": "p-type Si absorber", "color": "#1D4ED8", "stroke_color": "#1E3A8A", "fill_opacity": 0.9},
+    {"type": "box", "id": "bsf", "x": 0, "y": 70, "w": 600, "h": 45, "text": "p+ BSF", "color": "#1E3A8A", "stroke_color": "#172554", "fill_opacity": 0.85},
+    {"type": "box", "id": "metal_back", "x": 0, "y": 140, "w": 600, "h": 45, "text": "Al back contact", "color": "#6B7280", "stroke_color": "#374151", "fill_opacity": 1.0},
+
+    {"type": "box", "id": "finger1", "x": -220, "y": -340, "w": 16, "h": 30, "text": "", "color": "#9CA3AF", "stroke_color": "#374151", "fill_opacity": 1.0},
+    {"type": "box", "id": "finger2", "x": -70, "y": -340, "w": 16, "h": 30, "text": "", "color": "#9CA3AF", "stroke_color": "#374151", "fill_opacity": 1.0},
+    {"type": "box", "id": "finger3", "x": 80, "y": -340, "w": 16, "h": 30, "text": "", "color": "#9CA3AF", "stroke_color": "#374151", "fill_opacity": 1.0},
+    {"type": "box", "id": "finger4", "x": 230, "y": -340, "w": 16, "h": 30, "text": "", "color": "#9CA3AF", "stroke_color": "#374151", "fill_opacity": 1.0},
+
+    {"type": "line", "x1": -340, "y1": -355, "x2": 340, "y2": -355, "text": "", "stroke_color": "#6B7280", "stroke_dash": "10,5,2,5"},
+
+    {"type": "text", "x": -420, "y": -355, "text": "Ag front grid", "font_size": 12, "color": "#374151"},
+
+    {"type": "arrow", "x1": -340, "y1": -470, "x2": -250, "y2": -340, "text": "", "color": "#F59E0B"},
+    {"type": "text", "x": -380, "y": -400, "text": "incident photon", "font_size": 12, "color": "#F59E0B"},
+    {"type": "arrow", "x1": -280, "y1": -470, "x2": -100, "y2": 20, "text": "", "color": "#FBBF24", "stroke_dash": "5,3"},
+    {"type": "arrow", "x1": -210, "y1": -470, "x2": 40, "y2": 20, "text": "", "color": "#EA580C"},
+    {"type": "text", "x": -300, "y": -250, "text": "absorbed photons", "font_size": 12, "color": "#EA580C"},
+    {"type": "text", "x": -300, "y": -230, "text": "generate e-/h+", "font_size": 12, "color": "#EA580C"},
+
+    {"type": "text", "x": 380, "y": -140, "text": "electrons -> front", "font_size": 12, "color": "#2563EB"},
+    {"type": "arrow", "x1": 310, "y1": -140, "x2": 380, "y2": -140, "text": "", "color": "#2563EB"},
+    {"type": "text", "x": 380, "y": 140, "text": "holes -> back", "font_size": 12, "color": "#DC2626"},
+    {"type": "arrow", "x1": 310, "y1": 140, "x2": 380, "y2": 140, "text": "", "color": "#DC2626"},
+
+    {"type": "callout", "id": "depletion", "x": 460, "y": -100, "text": "depletion region", "anchor_x": 300, "anchor_y": -100, "color": "#7C3AED", "font_size": 13},
+    {"type": "callout", "id": "junction_note", "x": 460, "y": -60, "text": "p-n junction", "anchor_x": 300, "anchor_y": -60, "color": "#7C3AED", "font_size": 13},
+    {"type": "callout", "id": "arc_note", "x": -460, "y": -230, "text": "anti-reflective coating", "anchor_x": -300, "anchor_y": -230, "color": "#7C3AED", "font_size": 13},
+
+    {"type": "legend", "id": "matkey", "x": -460, "y": 290, "w": 280, "h": 220, "title": "Material Key", "entries": [
+      {"label": "Glass / ARC", "color": "#38BDF8"},
+      {"label": "TiO2 dielectric", "color": "#A78BFA"},
+      {"label": "n+ Si emitter", "color": "#2563EB"},
+      {"label": "p-Si absorber", "color": "#1D4ED8"},
+      {"label": "p+ BSF", "color": "#1E3A8A"},
+      {"label": "Metal contacts", "color": "#6B7280"}
+    ], "fill_opacity": 0.95},
+
+    {"type": "text", "x": 0, "y": 350, "text": "Standard Al-BSF silicon solar cell. The p-type absorber (~180 um) is the main", "font_size": 12, "color": "#334155"},
+    {"type": "text", "x": 0, "y": 372, "text": "photon-absorbing layer. A thin n+ emitter forms the p-n junction. A TiO2 ARC", "font_size": 12, "color": "#334155"},
+    {"type": "text", "x": 0, "y": 394, "text": "reduces reflection. Ag fingers collect electrons; Al back contact collects holes.", "font_size": 12, "color": "#334155"},
+    {"type": "text", "x": 0, "y": 416, "text": "The p+ BSF provides back-surface passivation.", "font_size": 12, "color": "#334155"},
+
+    {"type": "text", "x": 200, "y": 460, "text": "Key equations:  J_sc = q * integral(Phi(lambda) dlambda)", "font_size": 12, "color": "#1E3A8A"},
+    {"type": "text", "x": 200, "y": 482, "text": "eta = (J_sc * V_oc * FF) / P_in", "font_size": 12, "color": "#1E3A8A"},
+
+    {"type": "text", "x": -600, "y": -340, "text": "100 um", "font_size": 10, "color": "#94A3B8"},
+    {"type": "text", "x": -600, "y": -170, "text": "150 um", "font_size": 10, "color": "#94A3B8"},
+    {"type": "text", "x": -600, "y": -60, "text": "200 um", "font_size": 10, "color": "#94A3B8"}
+  ]
+}

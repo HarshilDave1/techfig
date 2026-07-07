@@ -46,15 +46,24 @@ def snap_to_grid(spec: Dict[str, Any], grid_size: float = 20.0) -> Dict[str, Any
             return val
         return round(float(val) / grid_size) * grid_size
 
-    keys_to_snap = ["x", "y", "w", "h", "r", "rx", "ry", "x1", "y1", "x2", "y2"]
-    
+    keys_to_snap = ["x", "y", "w", "h", "r", "rx", "ry", "x1", "y1", "x2", "y2", "anchor_x", "anchor_y", "curve"]
+
     for el in new_spec.get("elements", []):
         if el.get("type") == "text":
             continue  # don't snap text labels
         for k in keys_to_snap:
             if k in el and _is_numeric(el[k]):
                 el[k] = snap(el[k])
-                
+        # Snap path point coordinates too
+        if el.get("type") == "path" and isinstance(el.get("points"), list):
+            new_points = []
+            for p in el["points"]:
+                if isinstance(p, (list, tuple)):
+                    new_points.append([snap(v) if i < 2 and _is_numeric(v) else v for i, v in enumerate(p)])
+                else:
+                    new_points.append(p)
+            el["points"] = new_points
+
     return new_spec
 
 
@@ -148,6 +157,7 @@ def align_rows_and_cols(spec: Dict[str, Any], tolerance: float = 30.0) -> Dict[s
         # find groups of elements that share roughly the same coordinate along 'axis'
         # sort elements by the coordinate
         # Skip text elements — force-aligning them creates label collisions
+        perp = "y" if axis == "x" else "x"
         els = [e for e in elements if axis in e and _is_numeric(e[axis]) and e.get("type") != "text"]
         if not els:
             return
@@ -158,7 +168,16 @@ def align_rows_and_cols(spec: Dict[str, Any], tolerance: float = 30.0) -> Dict[s
         current_group = [els[0]]
 
         for e in els[1:]:
-            if float(e[axis]) - float(current_group[-1][axis]) <= tolerance:
+            # Close on the target axis AND close on perpendicular axis => diagonal,
+            # not a genuine row/column. Start a new group to avoid collapsing it.
+            close_axis = float(e[axis]) - float(current_group[-1][axis]) <= tolerance
+            prev = current_group[-1]
+            close_perp = (
+                perp in e and perp in prev
+                and _is_numeric(e[perp]) and _is_numeric(prev[perp])
+                and abs(float(e[perp]) - float(prev[perp])) <= tolerance
+            )
+            if close_axis and not close_perp:
                 current_group.append(e)
             else:
                 groups.append(current_group)
@@ -178,7 +197,7 @@ def align_rows_and_cols(spec: Dict[str, Any], tolerance: float = 30.0) -> Dict[s
 
     align_axis("x")
     align_axis("y")
-
+    
     # Also align line endpoints
     def align_lines(axis1: str, axis2: str, target: str):
         # E.g. x1 and x2 matching nearby shape x's
@@ -299,14 +318,14 @@ def lint_spec(spec: Dict[str, Any], grid_size: float = 20.0, align_tolerance: fl
     overlap_issues = []
     
     # Check grid snapping
-    keys_to_check = ["x", "y", "w", "h", "x1", "y1", "x2", "y2", "r", "rx", "ry"]
+    keys_to_check = ["x", "y", "w", "h", "x1", "y1", "x2", "y2", "r", "rx", "ry", "anchor_x", "anchor_y", "curve"]
     total_checks = 0
     failed_grid_checks = 0
-    
+
     for el in all_els:
         type_str = el.get("type", "unknown")
         el_id = el.get("id", f"{type_str}_no_id")
-        
+
         for k in keys_to_check:
             if k in el and _is_numeric(el[k]):
                 total_checks += 1
@@ -318,6 +337,25 @@ def lint_spec(spec: Dict[str, Any], grid_size: float = 20.0, align_tolerance: fl
                     failed_grid_checks += 1
                     if dist > 2:  # Only complain if visibly off-grid
                         grid_issues.append(f"Element '{el_id}' {k}={val} is not aligned to {grid_size}px grid")
+
+        # Check path points
+        if type_str == "path" and isinstance(el.get("points"), list):
+            for idx, p in enumerate(el["points"]):
+                if not isinstance(p, (list, tuple)) or len(p) < 2:
+                    continue
+                for axis_idx, axis_name in enumerate(("px", "py")):
+                    v = p[axis_idx]
+                    if _is_numeric(v):
+                        total_checks += 1
+                        val = float(v)
+                        snapped = round(val / grid_size) * grid_size
+                        dist = abs(val - snapped)
+                        if dist > 1e-5:
+                            failed_grid_checks += 1
+                            if dist > 2:
+                                grid_issues.append(
+                                    f"Path '{el_id}' point[{idx}] {axis_name}={val} is not aligned to {grid_size}px grid"
+                                )
                         
     # Check alignment (almost aligned but not quite)
     for axis in ["x", "y"]:

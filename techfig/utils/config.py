@@ -6,7 +6,6 @@ CONFIG_PATH = CONFIG_DIR / "config.yaml"
 
 DEFAULT_CONFIG = {
     "style": "nature",
-    "pretty_model": "openai/dall-e-3",
     "dpi": 300,
     "quality": "l",
     "max_rounds": 5,
