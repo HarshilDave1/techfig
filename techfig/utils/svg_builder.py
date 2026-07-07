@@ -18,6 +18,7 @@ import drawsvg as draw
 # They are imported lazily inside the metrics helper so that a missing or broken
 # font stack never prevents SVG generation — we fall back to the old heuristic.
 from PIL import ImageFont
+from techfig.styles.presets import get_style
 
 
 # Default fill opacity for shapes — light pastel fill with solid stroke
@@ -148,20 +149,36 @@ class SVGBuilder:
         self.height = height
         self.drawing = draw.Drawing(width, height, origin="center")
 
-        self.style = style_config or {
-            "font_family": "Arial, Helvetica, sans-serif",
-            "font_size": 14,
-            "stroke": "#333333",
-            "stroke_width": 2,
-            "fill": "none",
-            "colors": {
-                "primary": "#0072B2",
-                "secondary": "#D55E00",
-                "accent": "#009E73",
-                "background": "#FFFFFF",
-                "text": "#000000",
-            },
-        }
+        # Resolve a named style preset (e.g. {"name": "nature"}) into the full
+        # style dict, merging any caller-provided overrides on top. A bare dict
+        # without a "name" key is used as-is (backward compatible).
+        if style_config and isinstance(style_config, dict) and "name" in style_config:
+            base = dict(get_style(style_config["name"]))
+            for k, v in style_config.items():
+                if k == "name":
+                    continue
+                if isinstance(v, dict) and isinstance(base.get(k), dict):
+                    merged = dict(base[k])
+                    merged.update(v)
+                    base[k] = merged
+                else:
+                    base[k] = v
+            self.style = base
+        else:
+            self.style = style_config or {
+                "font_family": "Arial, Helvetica, sans-serif",
+                "font_size": 14,
+                "stroke": "#333333",
+                "stroke_width": 2,
+                "fill": "none",
+                "colors": {
+                    "primary": "#0072B2",
+                    "secondary": "#D55E00",
+                    "accent": "#009E73",
+                    "background": "#FFFFFF",
+                    "text": "#000000",
+                },
+            }
 
         # White background for clean PNG export
         bg = self.style.get("colors", {}).get("background", "#FFFFFF")
@@ -809,9 +826,7 @@ class SVGBuilder:
         """Add a plain line (no arrowhead). Supports stroke_dash for dashed lines."""
         style_attrs, kwargs = self._extract_style_kwargs(kwargs, default_fill_opacity=-1)
         label_y_override = kwargs.pop("label_y_override", None)
-        color = self._resolve_color(stroke_color)
-        if color == stroke_color:
-            color = str(self.style.get("colors", {}).get("stroke", stroke_color))
+        color = self._stroke_color(stroke_color)
 
         self.drawing.append(draw.Line(
             x1, y1, x2, y2,
@@ -853,9 +868,7 @@ class SVGBuilder:
         arrow to the right of the start→end direction, negative to the left.
         """
         style_attrs, kwargs = self._extract_style_kwargs(kwargs, default_fill_opacity=-1)
-        color = self._resolve_color(stroke_color)
-        if color == stroke_color:
-            color = str(self.style.get("colors", {}).get("stroke", stroke_color))
+        color = self._stroke_color(stroke_color)
 
         arrow_marker = draw.Marker(-0.1, -0.5, 0.9, 0.5, scale=8, orient="auto")
         arrow_marker.append(
@@ -923,9 +936,7 @@ class SVGBuilder:
             raise ValueError("add_path requires at least 2 points")
 
         style_attrs, kwargs = self._extract_style_kwargs(kwargs, default_fill_opacity=-1)
-        color = self._resolve_color(stroke_color)
-        if color == stroke_color:
-            color = str(self.style.get("colors", {}).get("stroke", stroke_color))
+        color = self._stroke_color(stroke_color)
 
         marker = None
         if arrowhead in ("end", "both"):
@@ -1224,9 +1235,7 @@ class SVGBuilder:
 
         style_attrs, kwargs = self._extract_style_kwargs(kwargs)
         label_y_override = kwargs.pop("label_y_override", None)
-        color = self._resolve_color(stroke_color)
-        if color == stroke_color:  # wasn't in colors dict
-            color = str(self.style.get("colors", {}).get("stroke", stroke_color))
+        color = self._stroke_color(stroke_color)
 
         arrow_marker = draw.Marker(-0.1, -0.5, 0.9, 0.5, scale=8, orient="auto")
         arrow_marker.append(
@@ -1281,9 +1290,7 @@ class SVGBuilder:
 
         style_attrs, kwargs = self._extract_style_kwargs(kwargs)
         label_y_override = kwargs.pop("label_y_override", None)
-        color = self._resolve_color(stroke_color)
-        if color == stroke_color:
-            color = str(self.style.get("colors", {}).get("stroke", stroke_color))
+        color = self._stroke_color(stroke_color)
 
         path = draw.Path(
             stroke=color,
