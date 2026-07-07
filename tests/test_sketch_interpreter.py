@@ -127,6 +127,15 @@ class TestSVGBuilderStyling:
         b.save(out)
         content = Path(out).read_text()
         assert "fill-opacity" in content or "opacity" in content
+        assert 'stroke="#333333"' in content
+
+    def test_stroke_color_override(self, tmp_path):
+        b = SVGBuilder(400, 300)
+        b.add_box(0, 0, 80, 50, text="X", element_id="x", stroke_color="#ff0000")
+        out = str(tmp_path / "stroke_override.svg")
+        b.save(out)
+        content = Path(out).read_text()
+        assert 'stroke="#ff0000"' in content
 
     def test_rotation(self, tmp_path):
         b = SVGBuilder(400, 300)
