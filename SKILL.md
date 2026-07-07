@@ -71,6 +71,11 @@ techfig styles
 - **dark** — Dark background for presentations
 - **presentation** — Large fonts, low DPI, clean
 - **minimal** — No grid, light aesthetic
+- **metal** — Metallic grayscale palette
+- **semiconductor** — Cool blue/purple palette for chip diagrams
+- **glass** — Light cyan glassmorphism-like palette
+- **dielectric** — Violet/lilac palette for insulators and fields
+- **substrate** — Warm amber/brown substrate palette
 - Custom `.yaml` files are also supported
 
 ## Data Input Formats
