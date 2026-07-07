@@ -90,7 +90,7 @@ Charts accept data as:
 3. **Check chart type** — valid types: `bar`, `line`, `scatter`, `box`, `histogram`, `heatmap`
 4. **Check style name** — run `techfig styles` to see available presets
 5. **Try minimal style first** — `--style minimal` has fewer dependencies
-6. **SVG conversion fallback** — tries cairosvg → rsvg-convert → inkscape automatically
+6. **SVG conversion fallback** — tries Playwright (Chromium) → rsvg-convert → cairosvg → inkscape automatically
 
 **Common issues:**
 - `FileNotFoundError` → check that input file exists at the given path
@@ -112,7 +112,7 @@ See the `examples/` directory for working samples:
 1. **Editable outputs** — SVGs with element IDs for Inkscape; .pptx for PowerPoint; .tex for LaTeX
 2. **No AI dependency in engines** — All engines are pure Python; the AI layer is optional
 3. **Colorblind-safe palettes** — All built-in styles use accessible color schemes
-4. **Fallback backends** — SVG conversion tries cairosvg → rsvg-convert → inkscape
+4. **Fallback backends** — SVG→PNG conversion tries Playwright (Chromium) → rsvg-convert → cairosvg → inkscape
 
 ## Self-Improvement Loop (Agent-Driven)
 

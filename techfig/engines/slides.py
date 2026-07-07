@@ -8,7 +8,6 @@ import os
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 import tempfile
-import subprocess
 
 from pptx import Presentation
 from pptx.util import Inches
@@ -19,54 +18,32 @@ logger = logging.getLogger(__name__)
 def _convert_svg_to_png(svg_path: str) -> Optional[str]:
     """Convert an SVG file to a temporary PNG.
 
-    Tries multiple backends: cairosvg (python), rsvg-convert (cli), inkscape (cli).
+    Delegates to :func:`techfig.utils.export.convert_format` so the slide
+    engine inherits the shared rasterizer priority (Playwright → rsvg-convert
+    → cairosvg → inkscape) instead of maintaining its own backend chain.
+
     Returns the temp PNG path on success, or None on failure.
     """
+    from techfig.utils.export import convert_format
+
     temp_png = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
     temp_png.close()
     png_path = temp_png.name
 
-    # Strategy 1: cairosvg (pure Python, best option)
     try:
-        import cairosvg
-        cairosvg.svg2png(url=svg_path, write_to=png_path, output_width=1920)
+        convert_format(svg_path, png_path, width=1920)
         return png_path
-    except ImportError:
-        pass
-    except Exception as exc:
-        logger.debug("cairosvg failed for %s: %s", svg_path, exc)
-
-    # Strategy 2: rsvg-convert (common on macOS via brew install librsvg)
-    try:
-        subprocess.run(
-            ["rsvg-convert", "-f", "png", "-w", "1920", "-o", png_path, svg_path],
-            check=True,
-            capture_output=True,
+    except Exception as exc:  # noqa: BLE001 — surface as a soft failure
+        if os.path.exists(png_path):
+            os.unlink(png_path)
+        logger.warning(
+            "Could not convert SVG '%s' to PNG: %s. "
+            "Install playwright (+`playwright install chromium`), librsvg, "
+            "cairosvg, or inkscape.",
+            svg_path,
+            exc,
         )
-        return png_path
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass
-
-    # Strategy 3: inkscape CLI
-    try:
-        subprocess.run(
-            ["inkscape", svg_path, "--export-type=png", f"--export-filename={png_path}",
-             "--export-width=1920"],
-            check=True,
-            capture_output=True,
-        )
-        return png_path
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass
-
-    # All strategies failed — clean up and return None
-    if os.path.exists(png_path):
-        os.unlink(png_path)
-    logger.warning(
-        "Could not convert SVG '%s' to PNG. Install cairosvg, librsvg, or inkscape.",
-        svg_path,
-    )
-    return None
+        return None
 
 
 def _add_bullets(text_frame, content: str) -> None:

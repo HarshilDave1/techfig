@@ -58,18 +58,92 @@ def snap_to_grid(spec: Dict[str, Any], grid_size: float = 20.0) -> Dict[str, Any
     return new_spec
 
 
+def _shape_bbox(el: Dict[str, Any]) -> tuple:
+    """Return (left, top, right, bottom) bbox for a shape element.
+
+    Coordinates are center-based (x, y = center of the shape), matching the
+    SVGBuilder convention. Returns None-like sentinel (inf bbox) for elements
+    we cannot size, so they are ignored by overlap checks.
+    """
+    t = el.get("type")
+    if t == "circle":
+        r = float(el.get("r", 0))
+        x, y = float(el.get("x", 0)), float(el.get("y", 0))
+        return (x - r, y - r, x + r, y + r)
+    if t == "ellipse":
+        rx = float(el.get("rx", 0))
+        ry = float(el.get("ry", 0))
+        x, y = float(el.get("x", 0)), float(el.get("y", 0))
+        return (x - rx, y - ry, x + rx, y + ry)
+    if t in ("box", "diamond", "triangle"):
+        w = float(el.get("w", 0))
+        h = float(el.get("h", 0))
+        x, y = float(el.get("x", 0)), float(el.get("y", 0))
+        return (x - w / 2, y - h / 2, x + w / 2, y + h / 2)
+    # text / line / unknown -> no reliable bbox for overlap purposes
+    return None
+
+
+def _bboxes_overlap(b1: tuple, b2: tuple) -> bool:
+    """Strict AABB overlap test (touching edges do NOT count as overlap)."""
+    if b1 is None or b2 is None:
+        return False
+    return (b1[0] < b2[2] and b2[0] < b1[2] and
+            b1[1] < b2[3] and b2[1] < b1[3])
+
+
 def align_rows_and_cols(spec: Dict[str, Any], tolerance: float = 30.0) -> Dict[str, Any]:
     """Force elements that are almost aligned by Y (rows) or X (columns) to align exactly.
-    
-    Groups elements whose X or Y differ by <= tolerance, and averages them, 
+
+    Groups elements whose X or Y differ by <= tolerance, and averages them,
     setting all elements in the group to the exact same value.
+
+    Safety: a group is only aligned if doing so does NOT create any new
+    overlaps between its members. Elements that would be pulled into an
+    overlap (e.g. a deliberately-offset diagonal/staircase whose steps are
+    within tolerance on both axes) are left untouched. This prevents the
+    resolver from destroying good intentional layouts.
     """
     new_spec = copy.deepcopy(spec)
     elements = new_spec.get("elements", [])
-    
+
     if not elements:
         return new_spec
-        
+
+    # Precompute bboxes for overlap checking. Bboxes are recomputed after each
+    # axis pass since coordinates may have changed.
+    def bboxes():
+        return {id(el): _shape_bbox(el) for el in elements}
+
+    def would_create_overlap(group, axis: str, new_val: float) -> bool:
+        """Check if setting `axis` to `new_val` on every member of `group`
+        would cause any pair in the group to overlap that did not before."""
+        # Build candidate bboxes with the proposed coordinate applied.
+        cand = {}
+        cur = bboxes()
+        for el in group:
+            bb = cur.get(id(el))
+            if bb is None:
+                continue
+            # Replace the two coords on `axis` with the new centered value.
+            # axis is 'x' or 'y'; bbox layout is (left, top, right, bottom).
+            if axis == "x":
+                w = bb[2] - bb[0]
+                cand[id(el)] = (new_val - w / 2, bb[1], new_val + w / 2, bb[3])
+            else:
+                h = bb[3] - bb[1]
+                cand[id(el)] = (bb[0], new_val - h / 2, bb[2], new_val + h / 2)
+        # Compare every pair: a new overlap that was NOT present before counts.
+        ids = [id(el) for el in group if id(el) in cand]
+        for i in range(len(ids)):
+            for j in range(i + 1, len(ids)):
+                a, b = cand[ids[i]], cand[ids[j]]
+                if _bboxes_overlap(a, b):
+                    # Was this overlap already present in the current layout?
+                    if not _bboxes_overlap(cur[ids[i]], cur[ids[j]]):
+                        return True
+        return False
+
     def align_axis(axis: str):
         # find groups of elements that share roughly the same coordinate along 'axis'
         # sort elements by the coordinate
@@ -77,12 +151,12 @@ def align_rows_and_cols(spec: Dict[str, Any], tolerance: float = 30.0) -> Dict[s
         els = [e for e in elements if axis in e and _is_numeric(e[axis]) and e.get("type") != "text"]
         if not els:
             return
-            
+
         els.sort(key=lambda e: float(e[axis]))
-        
+
         groups = []
         current_group = [els[0]]
-        
+
         for e in els[1:]:
             if float(e[axis]) - float(current_group[-1][axis]) <= tolerance:
                 current_group.append(e)
@@ -90,18 +164,25 @@ def align_rows_and_cols(spec: Dict[str, Any], tolerance: float = 30.0) -> Dict[s
                 groups.append(current_group)
                 current_group = [e]
         groups.append(current_group)
-        
-        # average and apply
+
+        # average and apply -- but only if it does not create new overlaps
         for group in groups:
             if len(group) > 1:
                 avg = sum(float(e[axis]) for e in group) / len(group)
-                # optionally round to nearest int if sensible
                 avg = round(avg, 2)
+                if would_create_overlap(group, axis, avg):
+                    # Aligning this group would destroy a good layout: skip it.
+                    continue
                 for e in group:
                     e[axis] = avg
-                    
+
     align_axis("x")
     align_axis("y")
+
+    # Also align line endpoints
+    def align_lines(axis1: str, axis2: str, target: str):
+        # E.g. x1 and x2 matching nearby shape x's
+        pass  # Simplified for now, just snapping elements
 
     return new_spec
 
