@@ -40,8 +40,6 @@ def main():
     diag_p = subparsers.add_parser("diagram", help="Generate a structural diagram")
     diag_p.add_argument("--input", required=True, help="JSON file with nodes and edges")
     diag_p.add_argument("-o", "--output", required=True, help="Output file (.svg/.png)")
-    diag_p.add_argument("--pretty", action="store_true", help="Generate a stylized rendering using an AI image model")
-    diag_p.add_argument("--pretty-model", default="openai/dall-e-3", help="Model to use for --pretty rendering (e.g. vertex_ai/imagen-3.0-generate-001)")
 
     # ---- slides ----------------------------------------------------------
     slides_p = subparsers.add_parser("slides", help="Generate a PowerPoint presentation")
@@ -89,8 +87,6 @@ def main():
     recon_p.add_argument("--auto-refine", action="store_true", help="Launch the autonomous autoresearch visual refinement loop")
     recon_p.add_argument("--max-rounds", type=int, default=cfg["max_rounds"], help="Max auto-refinement rounds")
     recon_p.add_argument("--ref-image", help="Optional original sketch image for aesthetic scoring context")
-    recon_p.add_argument("--pretty", action="store_true", help="Generate a stylized rendering using an AI image model")
-    recon_p.add_argument("--pretty-model", default=cfg["pretty_model"], help="Model to use for --pretty rendering (e.g. vertex_ai/imagen-3.0-generate-001)")
 
 
     # ---- critique --------------------------------------------------------
@@ -171,7 +167,7 @@ def main():
     cfg_sub = cfg_p.add_subparsers(dest="cfg_command", help="Config command")
     cfg_sub.add_parser("list", help="List current configuration")
     cfg_set = cfg_sub.add_parser("set", help="Set a configuration value")
-    cfg_set.add_argument("key", help="Configuration key (e.g. style, pretty_model, dpi)")
+    cfg_set.add_argument("key", help="Configuration key (e.g. style, dpi, max_rounds)")
     cfg_set.add_argument("value", help="Configuration value")
 
     # ---- components ------------------------------------------------------
@@ -249,15 +245,6 @@ def main():
             data = json.load(f)
         out = create_flowchart(data.get("nodes", []), data.get("edges", []), args.output)
         print(f"Diagram saved to {out}")
-        
-        if getattr(args, "pretty", False):
-            from techfig.engines.pretty import generate_pretty_image
-            import os
-            base_name, _ = os.path.splitext(out)
-            pretty_out = f"{base_name}_pretty.png"
-            print(f"Generating pretty rendering using {args.pretty_model}...")
-            final_out = generate_pretty_image(out, pretty_out, model=args.pretty_model)
-            print(f"Pretty rendering saved to {final_out}")
 
     elif args.command == "slides":
         print(f"Generating slides from {args.input}...")
@@ -331,15 +318,6 @@ def main():
             print(f"Rendering diagram spec {args.input} → {args.output}...")
             out = render_from_json(args.input, args.output)
             print(f"SVG saved to {out}")
-            
-        if getattr(args, "pretty", False):
-            from techfig.engines.pretty import generate_pretty_image
-            import os
-            base_name, _ = os.path.splitext(out)
-            pretty_out = f"{base_name}_pretty.png"
-            print(f"Generating pretty rendering using {args.pretty_model}...")
-            final_out = generate_pretty_image(out, pretty_out, model=args.pretty_model)
-            print(f"Pretty rendering saved to {final_out}")
 
     elif args.command == "critique":
         from techfig.engines.autoresearch import critique_report

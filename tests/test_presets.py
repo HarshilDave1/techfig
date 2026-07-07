@@ -12,8 +12,27 @@ def test_get_available_styles():
     assert "dark" in styles
     assert "presentation" in styles
     assert "minimal" in styles
+    assert "metal" in styles
+    assert "semiconductor" in styles
+    assert "glass" in styles
+    assert "dielectric" in styles
+    assert "substrate" in styles
     # Should be sorted
     assert styles == sorted(styles)
+
+
+def test_material_style_presets():
+    metal = get_style("metal")
+    semiconductor = get_style("semiconductor")
+    glass = get_style("glass")
+    dielectric = get_style("dielectric")
+    substrate = get_style("substrate")
+
+    assert metal["colors"]["background"] == "#F3F4F6"
+    assert semiconductor["colors"]["primary"] == "#2563EB"
+    assert glass["colors"]["stroke"] == "#7DD3FC"
+    assert dielectric["colors"]["background"] == "#FAF5FF"
+    assert substrate["colors"]["text"] == "#451A03"
 
 
 def test_get_nature_style():

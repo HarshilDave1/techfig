@@ -14,9 +14,8 @@ The agentic refinement loop (optional):
     Pass 2+: LLM + REFINE_PROMPT + original image + current SVG  refined JSON  re-render
     Repeat until quality is acceptable or max iterations reached.
 """
-import copy
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from pathlib import Path
 
 from techfig.engines.diagrams import create_diagram
@@ -61,17 +60,28 @@ DIAGRAM_SCHEMA: Dict[str, Any] = {
                 "properties": {
                     "type": {
                         "type": "string",
-                        "enum": ["box", "circle", "diamond", "ellipse", "triangle", "text", "line"],
+                        "enum": ["box", "circle", "diamond", "ellipse", "triangle", "text", "line", "arrow", "path", "callout", "legend"],
                     },
                     "id": {"type": "string", "description": "Unique ID for connections"},
                     "text": {"type": "string"},
                     "x": {"type": "number"}, "y": {"type": "number"},
                     "w": {"type": "number"}, "h": {"type": "number"},
-                    "r": {"type": "number"},
-                    "rx": {"type": "number"}, "ry": {"type": "number"},
+                    "r": {"type": "number"}, "rx": {"type": "number"}, "ry": {"type": "number"},
                     "x1": {"type": "number"}, "y1": {"type": "number"},
                     "x2": {"type": "number"}, "y2": {"type": "number"},
                     "color": {"type": "string"},
+                    "stroke_color": {"type": "string"},
+                    "curve": {"type": "number", "description": "Arrow curvature offset (quadratic Bezier)"},
+                    "points": {
+                        "type": "array",
+                        "description": "Path points: list of [x,y] or [x,y,cmd] where cmd is M/L/Q/C",
+                        "items": {"type": "array", "items": {"type": ["number", "string"]}},
+                    },
+                    "closed": {"type": "boolean", "description": "Close path with Z (outline)"},
+                    "arrowhead": {"type": "string", "enum": ["none", "end", "start", "both"]},
+                    "anchor_x": {"type": "number"},
+                    "anchor_y": {"type": "number"},
+                    "anchor": {"type": "string"},
                     "direction": {"type": "string", "enum": ["up", "down", "left", "right"]},
                     "font_size": {"type": "number"},
                     "stroke_dash": {"type": "string"},
@@ -112,15 +122,20 @@ and output a JSON specification that recreates it using clean geometric primitiv
 
 ## Available element types
 
+> **Note:** `arrow` and `path` below are *standalone* elements placed by absolute coordinates. Use the `connections` array (below) for arrows/lines that link two named element ids.
+
 | type | required fields | optional fields | notes |
 |------|----------------|-----------------|-------|
-| box | id, x, y | w, h, text, color, fill_opacity, stroke_dash, rotation | Rectangle (rounded corners). Default w=100, h=60 |
-| circle | id, x, y | r, text, color, fill_opacity, stroke_dash | Circle. Default r=40 |
-| ellipse | id, x, y | rx, ry, text, color, fill_opacity, stroke_dash, rotation | Ellipse/oval. Good for lenses, ovals |
-| diamond | id, x, y | w, h, text, color, fill_opacity | Diamond/decision node |
-| triangle | id, x, y | w, h, text, color, direction(up/down/left/right), fill_opacity | Triangle. Default 6060 |
+| box | id, x, y | w, h, text, color, stroke_color, fill_opacity, stroke_dash, rotation | Rectangle (rounded corners). Default w=100, h=60 |
+| circle | id, x, y | r, text, color, stroke_color, fill_opacity, stroke_dash | Circle. Default r=40 |
+| ellipse | id, x, y | rx, ry, text, color, stroke_color, fill_opacity, stroke_dash, rotation | Ellipse/oval. Good for lenses, ovals |
+| diamond | id, x, y | w, h, text, color, stroke_color, fill_opacity | Diamond/decision node |
+| triangle | id, x, y | w, h, text, color, stroke_color, direction(up/down/left/right), fill_opacity | Triangle. Default 6060 |
 | text | x, y, text | id, font_size, color, rotation | Free-floating label (no shape). Use for annotations |
 | line | x1, y1, x2, y2 | text, color, stroke_dash | Plain line. stroke_dash="5,3" for dashed |
+| arrow | x1, y1, x2, y2 | text, color, stroke_dash, curve | Free-form arrow with arrowhead at (x2,y2). `curve` is a perpendicular offset in px for a quadratic Bezier bow (positive bows right of travel direction, negative left). Use for annotations/leader lines that don't anchor to a shape id |
+| path | points | text, color, stroke_dash, closed, arrowhead, fill_opacity | Multi-segment polyline/curve. `points` is a list of [x,y] or [x,y,cmd] where cmd is "M","L","Q" (next entry is control point), or "C" (next two entries are control points). `closed`: true closes the outline (Z). `arrowhead`: "none" (default), "end", "start", or "both". Use for wavy lines, brackets, curved annotations, custom outlines |
+| callout | x, y, text | anchor_x, anchor_y (or anchor=element id), id, color, font_size, stroke_dash, rotation | Anchored label with a leader line from the anchor point to the label, plus a small anchor dot. Use to annotate a specific point or element. If `anchor` is an element id, the leader attaches to that element's boundary; if `anchor_x`/`anchor_y` are given they pin the leader to that coordinate. |
 
 ## Connections (arrows and lines between elements)
 
@@ -147,9 +162,12 @@ Reference elements by their `id`. Each connection has:
    - Outline-only (no fill): `fill_opacity: 0.0`
    - Light fill: `fill_opacity: 0.1` to `0.2`
 2. **Always set explicit `color`** using hex (e.g. "#0072B2", "#FF6B6B", "#009E73")
-   - Match the colors you see in the original image
+   - Match the fill colors you see in the original image
    - Use distinct colors for different types of shapes
-3. **Size shapes appropriately:**
+3. **When the outline should differ from the fill, set `stroke_color` explicitly**
+   - The renderer uses a dark default stroke when `stroke_color` is omitted
+   - Use a visible outline color that contrasts with the fill
+4. **Size shapes appropriately:**
    - Make shapes large enough to be readable (min w=60, h=40 for boxes)
    - Match proportions from the original image
    - Triangles, circles should be sized to match visually
@@ -173,8 +191,10 @@ Return ONLY valid JSON (no markdown fences, no explanation):
   "connections": [...]
 }
  
-IMPORTANT: Every element MUST include a "type" field matching one of the types listed above (e.g. "box", "circle", "text", "line", "diamond", "ellipse", "triangle").
+IMPORTANT: Every element MUST include a "type" field matching one of the types listed above (e.g. "box", "circle", "text", "line", "arrow", "path", "callout", "diamond", "ellipse", "triangle").
 Example element with type: {"type": "box", "id": "mybox", "x": 0, "y": 0, "w": 100, "h": 60, "text": "Box", "color": "#0072B2", "fill_opacity": 1.0}
+Example arrow: {"type": "arrow", "x1": -50, "y1": 0, "x2": 50, "y2": 0, "text": "flow", "color": "#333"}
+Example path: {"type": "path", "points": [[0,0], [50,0,"Q"], [75,-20], [100,0]], "closed": false, "arrowhead": "end"}
 Do NOT omit the "type" field from any element.
 """
 
@@ -213,3 +233,108 @@ Common problems to look for:
 - Keep all existing element IDs stable (don't rename them)
 - You may add or remove elements as needed
 - Return ONLY valid JSON (no markdown fences, no explanation)"""
+
+
+def get_diagram_schema() -> Dict[str, Any]:
+    """Return the JSON schema used for diagram specs."""
+    return DIAGRAM_SCHEMA
+
+
+def get_sketch_prompt() -> str:
+    """Return the system prompt used for sketch interpretation."""
+    return SKETCH_PROMPT
+
+
+def validate_spec(spec: Dict[str, Any]) -> List[str]:
+    """Validate a diagram spec and return human-readable issues.
+
+    The validation is intentionally lightweight: it catches the schema
+    mistakes covered by the test suite and the CLI pipeline without
+    re-implementing a full JSON-schema validator.
+    """
+    issues: List[str] = []
+    if not isinstance(spec, dict):
+        return ["spec must be a mapping"]
+
+    elements = spec.get("elements")
+    if not isinstance(elements, list) or not elements:
+        issues.append("missing elements")
+        return issues
+
+    known_ids = set()
+    allowed_types = set(DIAGRAM_SCHEMA["properties"]["elements"]["items"]["properties"]["type"]["enum"])
+    for idx, el in enumerate(elements):
+        if not isinstance(el, dict):
+            issues.append(f"element {idx}: must be an object")
+            continue
+
+        el_type = el.get("type")
+        if not el_type:
+            issues.append(f"element {idx}: missing type")
+            continue
+
+        if el_type not in allowed_types:
+            issues.append(f"element {idx}: unknown type '{el_type}'")
+
+        el_id = el.get("id")
+        if el_id:
+            if el_id in known_ids:
+                issues.append(f"element {idx}: duplicate id '{el_id}'")
+            known_ids.add(el_id)
+
+        if el_type in {"box", "circle", "diamond", "ellipse", "triangle", "text"}:
+            if "x" not in el or "y" not in el:
+                issues.append(f"element {idx}: missing x or y")
+        if el_type == "text" and not el.get("text"):
+            issues.append(f"element {idx}: missing text")
+        if el_type == "line" and any(k not in el for k in ("x1", "y1", "x2", "y2")):
+            issues.append(f"element {idx}: missing line endpoints")
+        if el_type == "arrow" and any(k not in el for k in ("x1", "y1", "x2", "y2")):
+            issues.append(f"element {idx}: missing arrow endpoints")
+        if el_type == "path" and "points" not in el:
+            issues.append(f"element {idx}: missing path points")
+        if el_type == "callout":
+            if not el.get("text"):
+                issues.append(f"element {idx}: missing text")
+            if "anchor_x" in el and "anchor_y" not in el:
+                issues.append(f"element {idx}: anchor_x provided without anchor_y")
+            if "anchor_y" in el and "anchor_x" not in el:
+                issues.append(f"element {idx}: anchor_y provided without anchor_x")
+
+    for idx, conn in enumerate(spec.get("connections", []) or []):
+        if not isinstance(conn, dict):
+            issues.append(f"connection {idx}: must be an object")
+            continue
+        from_id = conn.get("from")
+        to_id = conn.get("to")
+        if not from_id or not to_id:
+            issues.append(f"connection {idx}: missing from/to")
+            continue
+        if from_id not in known_ids or to_id not in known_ids:
+            issues.append(f"connection {idx}: unknown id reference")
+
+    return issues
+
+
+def render_from_spec(spec: Dict[str, Any], output_path: str) -> str:
+    """Validate a diagram spec and render it to SVG."""
+    issues = validate_spec(spec)
+    if issues:
+        raise ValueError(f"Invalid diagram spec: {'; '.join(issues)}")
+
+    canvas = spec.get("canvas") or {}
+    width = int(canvas.get("width", 1200))
+    height = int(canvas.get("height", 800))
+    style_config = spec.get("style") if isinstance(spec.get("style"), dict) else None
+    return create_diagram(spec["elements"], spec.get("connections", []) or [], output_path, width, height, style_config)
+
+
+def render_from_json(json_path: str, output_path: str) -> str:
+    """Load a diagram spec from JSON and render it to SVG."""
+    path = Path(json_path)
+    if not path.exists():
+        raise FileNotFoundError(json_path)
+
+    with open(path, "r", encoding="utf-8") as f:
+        spec = json.load(f)
+    return render_from_spec(spec, output_path)
