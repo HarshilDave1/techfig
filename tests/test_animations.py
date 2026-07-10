@@ -1,5 +1,4 @@
 import pytest
-import os
 import json
 from unittest.mock import patch, MagicMock
 from techfig.engines.animations import create_animation, DiagramScene
@@ -39,7 +38,7 @@ def test_create_animation_mocked(mock_scene_class, sample_spec, tmp_path):
     try:
         # Just calling it to see if it sets up the config and scene properly
         # We don't assert full file creation here because DiagramScene is mocked
-        result = create_animation(spec_path, out_path, quality="l")
+        create_animation(spec_path, out_path, quality="l")
         
         # Verify it tries to use the engine
         mock_scene_class.assert_called_once_with(sample_spec)

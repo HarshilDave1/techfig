@@ -14,12 +14,8 @@ The agentic refinement loop (optional):
     Pass 2+: LLM + REFINE_PROMPT + original image + current SVG → refined JSON → re-render
     Repeat until quality is acceptable or max iterations reached.
 """
-import copy
-import json
-from typing import Any, Dict, List, Optional
-from pathlib import Path
+from typing import Any, Dict
 
-from techfig.engines.diagrams import create_diagram
 
 
 # ── JSON Schema for diagram specs ─────────────────────────────────────────

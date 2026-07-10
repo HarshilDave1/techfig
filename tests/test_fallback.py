@@ -1,5 +1,4 @@
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 try:
     import schemdraw.elements as elm
 except ImportError:
@@ -12,13 +11,6 @@ if elm:
             super().__init__(*d, **kwargs)
             self.segments.append(elm.Segment([(0, 0), (1, 1)]))
 
-
-# Check if google-genai is installed at module level
-genai_available = True
-try:
-    from google import genai as _genai_check
-except ImportError:
-    genai_available = False
 
 
 def test_fallback_generate_component(monkeypatch):

@@ -2,7 +2,7 @@
 import os
 import pytest
 import pandas as pd
-from techfig.engines.figures import create_chart, CHART_TYPES
+from techfig.engines.figures import create_chart
 
 
 @pytest.fixture

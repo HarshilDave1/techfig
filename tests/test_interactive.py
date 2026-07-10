@@ -1,9 +1,10 @@
 import pytest
 import os
-import tempfile
-import json
 
-plotly = pytest.importorskip("plotly", reason="plotly required for interactive chart tests")
+try:
+    import plotly  # noqa: F401
+except ImportError:
+    pytest.skip("plotly required for interactive chart tests", allow_module_level=True)
 
 from techfig.engines.interactive import create_interactive_chart
 

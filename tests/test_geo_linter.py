@@ -1,11 +1,9 @@
 """Tests for the geometric linter and auto-correction."""
 
-import pytest
 from techfig.engines.geo_linter import (
     snap_to_grid,
     align_rows_and_cols,
-    lint_spec,
-    score_geometry
+    lint_spec
 )
 
 def test_snap_to_grid():

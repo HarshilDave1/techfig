@@ -1,6 +1,5 @@
 """Test the slide engine."""
 import os
-import pytest
 from techfig.engines.slides import create_presentation
 
 
