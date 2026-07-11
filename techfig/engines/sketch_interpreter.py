@@ -14,7 +14,10 @@ The agentic refinement loop (optional):
     Pass 2+: LLM + REFINE_PROMPT + original image + current SVG → refined JSON → re-render
     Repeat until quality is acceptable or max iterations reached.
 """
-from typing import Any, Dict
+import json
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from techfig.engines.diagrams import create_diagram
 
 
 
@@ -473,6 +476,7 @@ def auto_refine(
         The best JSON spec found.
     """
     import os
+    import copy
     from techfig.engines.autoresearch import critique_report
     from techfig.engines.geo_linter import snap_to_grid, align_rows_and_cols
     from litellm import completion as litellm_completion

@@ -18,17 +18,16 @@ Outputs land in:  output/autoresearch/<scenario>/
 import argparse
 import copy
 import json
-import os
 import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 # ── project root on path ─────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from techfig.engines.geo_linter import lint_spec, snap_to_grid, align_rows_and_cols
-from techfig.engines.sketch_interpreter import render_from_spec
+from techfig.engines.geo_linter import lint_spec, snap_to_grid, align_rows_and_cols  # noqa: E402
+from techfig.engines.sketch_interpreter import render_from_spec  # noqa: E402
 
 OUT_BASE = ROOT / "output" / "autoresearch"
 

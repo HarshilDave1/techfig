@@ -487,9 +487,6 @@ def create_diagram(
             # label_y_offset to compensate.
             # Compute the original mid_y the same way svg_builder does
             if from_id in builder._elements and to_id in builder._elements:
-                fx, fy, fw, fh = builder._elements[from_id]
-                tx, ty, tw, th = builder._elements[to_id]
-                orig_mid_y = (fy + ty) / 2 - 10
                 target_y = _adjusted_conn_labels[ci]
                 conn_kw["label_y_override"] = target_y
 

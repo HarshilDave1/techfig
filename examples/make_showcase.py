@@ -13,7 +13,6 @@ Run:
     python examples/make_showcase.py
 """
 
-import os
 import sys
 from pathlib import Path
 
@@ -145,7 +144,7 @@ def showcase_neural_network():
         width=900, height=500,
         style_config=style_config,
     )
-    print(f"   ✓ neural network diagram → showcase_neural_net.svg")
+    print("   ✓ neural network diagram → showcase_neural_net.svg")
     return path
 
 
@@ -173,7 +172,7 @@ def showcase_tikz():
             ylabel="Units",
         )
         paths.append(p)
-        print(f"   ✓ pgfplots chart  → showcase_chart.tex")
+        print("   ✓ pgfplots chart  → showcase_chart.tex")
     except Exception as e:
         print(f"   ✗ pgfplots chart  — {e}")
 
@@ -195,7 +194,7 @@ def showcase_tikz():
     try:
         p = diagram_to_tikz(nodes, edges, str(OUT / "showcase_diagram.tex"))
         paths.append(p)
-        print(f"   ✓ tikz diagram    → showcase_diagram.tex")
+        print("   ✓ tikz diagram    → showcase_diagram.tex")
     except Exception as e:
         print(f"   ✗ tikz diagram    — {e}")
 
@@ -226,10 +225,10 @@ def showcase_interactive():
             ylabel="Measurement (units)",
             style_name="nature",
         )
-        print(f"   ✓ interactive scatter → showcase_interactive.html")
+        print("   ✓ interactive scatter → showcase_interactive.html")
         return p
     except ImportError:
-        print(f"   ⚠ skipped (plotly not installed)")
+        print("   ⚠ skipped (plotly not installed)")
         return None
     except Exception as e:
         print(f"   ✗ interactive scatter — {e}")

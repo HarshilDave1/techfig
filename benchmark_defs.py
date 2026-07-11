@@ -72,7 +72,7 @@ def build_defs_benchmark(output_path: str) -> str:
     )
 
     # --- <defs>: drop-shadow filter ---
-    shadow = builder.add_filter(
+    builder.add_filter(
         "dropShadow",
         elements=[draw.FilterItem("feGaussianBlur", stdDeviation=3, result="blur")],
     )

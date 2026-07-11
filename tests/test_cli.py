@@ -1,8 +1,6 @@
 import subprocess
 import sys
-import os
 import json
-import pytest
 
 def run_cli(args):
     return subprocess.run(

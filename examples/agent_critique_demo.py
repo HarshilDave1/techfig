@@ -24,8 +24,8 @@ import copy
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from techfig.engines.autoresearch import critique_report
-from techfig.engines.geo_linter import snap_to_grid, align_rows_and_cols
+from techfig.engines.autoresearch import critique_report  # noqa: E402
+from techfig.engines.geo_linter import snap_to_grid, align_rows_and_cols  # noqa: E402
 
 OUT_DIR = ROOT / "output" / "agent_critique"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -115,13 +115,13 @@ def main():
             for i in issues:
                 print(f"    - {i}")
         if suggestions:
-            print(f"  Suggestions:")
+            print("  Suggestions:")
             for s in suggestions:
                 print(f"    → {s}")
 
         # Agent decision: stop if score is good enough
         if score >= 0.9:
-            print(f"\n  ✓ Score >= 0.9 — figure looks good!")
+            print("\n  ✓ Score >= 0.9 — figure looks good!")
             break
 
         # Apply fixes (in a real loop, the AI agent decides what to change)

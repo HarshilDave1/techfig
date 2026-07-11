@@ -3,7 +3,7 @@
 This demonstrates Step 2 of the sketch-to-diagram workflow.
 Step 1 would be sending an image to an LLM with the sketch prompt.
 """
-from techfig.engines.sketch_interpreter import render_from_spec, get_sketch_prompt
+from techfig.engines.sketch_interpreter import render_from_spec
 
 # The spec would come from an LLM vision analysis in practice.
 # Here we define it directly to show the format.

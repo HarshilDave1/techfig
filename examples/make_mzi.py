@@ -21,7 +21,6 @@ Components needed:
   - beam paths (lines/arrows)
 """
 
-import os
 import sys
 from pathlib import Path
 
@@ -29,9 +28,8 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
-from techfig.engines.diagrams import create_diagram
-from techfig.utils.svg_builder import SVGBuilder
-import drawsvg as draw
+from techfig.engines.diagrams import create_diagram  # noqa: E402
+import drawsvg as draw  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
