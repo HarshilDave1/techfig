@@ -1,0 +1,107 @@
+{
+  "canvas": {"width": 900, "height": 700},
+  "style": {
+    "font_family": "Helvetica, Arial, sans-serif",
+    "font_size": 15,
+    "stroke_width": 2.0,
+    "colors": {
+      "primary": "#2d6a4f",
+      "secondary": "#40916c",
+      "accent": "#5d4037",
+      "background": "#f7f4ef",
+      "text": "#1b4332"
+    }
+  },
+  "elements": [
+    {
+      "type": "text",
+      "x": 0,
+      "y": -300,
+      "text": "Deciduous tree — pen branches + polygon foliage",
+      "font_size": 20,
+      "color": "#1b4332"
+    },
+    {
+      "type": "polygon",
+      "id": "ground",
+      "points": [[-320, 250], [320, 250], [320, 290], [-320, 290]],
+      "color": "#d8c3a5",
+      "fill_opacity": 1.0,
+      "stroke_color": "#a1887f"
+    },
+    {
+      "type": "polygon",
+      "id": "trunk",
+      "points": [[-22, 252], [22, 252], [12, 40], [8, -40], [-8, -40], [-14, 40]],
+      "color": "#6d4c41",
+      "fill_opacity": 1.0,
+      "stroke_color": "#4e342e"
+    },
+    {
+      "type": "pen",
+      "id": "b1",
+      "points": [[-6, -20], [-50, -75], [-95, -125], [-130, -150]],
+      "smooth": true,
+      "color": "#5d4037",
+      "stroke_width": 7
+    },
+    {
+      "type": "pen",
+      "id": "b2",
+      "points": [[6, -25], [60, -90], [125, -145], [175, -175]],
+      "smooth": true,
+      "color": "#5d4037",
+      "stroke_width": 7
+    },
+    {
+      "type": "pen",
+      "id": "b3",
+      "points": [[-2, -35], [-25, -130], [-20, -205]],
+      "smooth": true,
+      "color": "#5d4037",
+      "stroke_width": 6
+    },
+    {
+      "type": "pen",
+      "id": "b4",
+      "points": [[4, -40], [35, -140], [50, -210]],
+      "smooth": true,
+      "color": "#5d4037",
+      "stroke_width": 6
+    },
+    {
+      "type": "compound",
+      "id": "canopy",
+      "op": "union",
+      "resolution": 1.1,
+      "shapes": [
+        {"type": "circle", "x": -90, "y": -150, "r": 70},
+        {"type": "circle", "x": -20, "y": -190, "r": 78},
+        {"type": "circle", "x": 55, "y": -185, "r": 72},
+        {"type": "circle", "x": 120, "y": -145, "r": 62},
+        {"type": "circle", "x": 20, "y": -130, "r": 68},
+        {"type": "circle", "x": -140, "y": -120, "r": 48},
+        {"type": "ellipse", "x": 10, "y": -155, "rx": 175, "ry": 85}
+      ],
+      "color": "#2d6a4f",
+      "fill_opacity": 1.0,
+      "stroke_color": "#1b4332"
+    },
+    {
+      "type": "text",
+      "x": -250,
+      "y": 180,
+      "text": "filled trunk + pen limbs",
+      "font_size": 13,
+      "color": "#5d4037"
+    },
+    {
+      "type": "text",
+      "x": 250,
+      "y": -240,
+      "text": "union canopy",
+      "font_size": 13,
+      "color": "#1b4332"
+    }
+  ]
+}

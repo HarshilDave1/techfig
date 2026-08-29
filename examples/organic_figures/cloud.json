@@ -1,0 +1,58 @@
+{
+  "canvas": {"width": 900, "height": 600},
+  "style": {
+    "font_family": "Helvetica, Arial, sans-serif",
+    "font_size": 16,
+    "stroke_width": 2,
+    "colors": {
+      "primary": "#90caf9",
+      "secondary": "#42a5f5",
+      "accent": "#1565c0",
+      "background": "#e3f2fd",
+      "text": "#0d47a1"
+    }
+  },
+  "elements": [
+    {
+      "type": "text",
+      "x": 0,
+      "y": -240,
+      "text": "Cumulus — compound union of overlapping lobes",
+      "font_size": 20,
+      "color": "#0d47a1"
+    },
+    {
+      "type": "compound",
+      "id": "cloud",
+      "op": "union",
+      "resolution": 1.0,
+      "shapes": [
+        {"type": "circle", "x": -90, "y": 30, "r": 70},
+        {"type": "circle", "x": -40, "y": -25, "r": 78},
+        {"type": "circle", "x": 30, "y": -15, "r": 85},
+        {"type": "circle", "x": 95, "y": 25, "r": 68},
+        {"type": "circle", "x": 10, "y": 45, "r": 60},
+        {"type": "ellipse", "x": 0, "y": 70, "rx": 160, "ry": 45}
+      ],
+      "color": "#90caf9",
+      "fill_opacity": 1.0,
+      "stroke_color": "#1565c0"
+    },
+    {
+      "type": "text",
+      "x": 280,
+      "y": -90,
+      "text": "union of 6 primitives",
+      "font_size": 13,
+      "color": "#1565c0"
+    },
+    {
+      "type": "line",
+      "x1": 175,
+      "y1": -40,
+      "x2": 230,
+      "y2": -80,
+      "color": "#1565c0"
+    }
+  ]
+}

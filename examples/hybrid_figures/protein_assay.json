@@ -1,0 +1,121 @@
+{
+  "canvas": {"width": 1200, "height": 720},
+  "style": {
+    "font_family": "Helvetica, Arial, sans-serif",
+    "font_size": 15,
+    "stroke_width": 1.8,
+    "colors": {
+      "primary": "#1A3E8C",
+      "secondary": "#2E7D32",
+      "accent": "#C62828",
+      "background": "#FFFFFF",
+      "text": "#222222"
+    }
+  },
+  "elements": [
+    {
+      "type": "text",
+      "x": 0,
+      "y": -310,
+      "text": "Hybrid figure — generated 3D fold + vector assay workflow",
+      "font_size": 22,
+      "color": "#1A3E8C"
+    },
+    {
+      "type": "image",
+      "id": "fold",
+      "x": -280,
+      "y": -10,
+      "w": 360,
+      "h": 360,
+      "src": "examples/hybrid_figures/cache/tim_barrel.png"
+    },
+    {
+      "type": "text",
+      "x": -280,
+      "y": 200,
+      "text": "TIM barrel (generated inset)",
+      "font_size": 13,
+      "color": "#555555"
+    },
+    {
+      "type": "box",
+      "id": "lyse",
+      "x": 80,
+      "y": -140,
+      "w": 170,
+      "h": 56,
+      "text": "Lyse + clarify",
+      "color": "primary",
+      "fill_opacity": 0.12
+    },
+    {
+      "type": "box",
+      "id": "bind",
+      "x": 300,
+      "y": -140,
+      "w": 170,
+      "h": 56,
+      "text": "Affinity bind",
+      "color": "primary",
+      "fill_opacity": 0.12
+    },
+    {
+      "type": "box",
+      "id": "elute",
+      "x": 80,
+      "y": 20,
+      "w": 170,
+      "h": 56,
+      "text": "Elute",
+      "color": "secondary",
+      "fill_opacity": 0.14
+    },
+    {
+      "type": "box",
+      "id": "assay",
+      "x": 300,
+      "y": 20,
+      "w": 170,
+      "h": 56,
+      "text": "Activity assay",
+      "color": "secondary",
+      "fill_opacity": 0.14
+    },
+    {
+      "type": "box",
+      "id": "out",
+      "x": 190,
+      "y": 170,
+      "w": 200,
+      "h": 56,
+      "text": "k_cat / K_M",
+      "color": "accent",
+      "fill_opacity": 0.12
+    },
+    {
+      "type": "callout",
+      "x": -40,
+      "y": -210,
+      "text": "β-barrel core",
+      "anchor_x": -280,
+      "anchor_y": -10,
+      "color": "#1A3E8C",
+      "font_size": 13
+    },
+    {
+      "type": "text",
+      "x": 190,
+      "y": -220,
+      "text": "vector workflow (editable)",
+      "font_size": 13,
+      "color": "#1A3E8C"
+    }
+  ],
+  "connections": [
+    {"from": "lyse", "to": "bind", "style": "arrow", "color": "#333333"},
+    {"from": "bind", "to": "elute", "style": "arrow", "color": "#333333"},
+    {"from": "elute", "to": "assay", "style": "arrow", "color": "#333333"},
+    {"from": "assay", "to": "out", "style": "arrow", "color": "#C62828"}
+  ]
+}

@@ -60,7 +60,7 @@ DIAGRAM_SCHEMA: Dict[str, Any] = {
                 "properties": {
                     "type": {
                         "type": "string",
-                        "enum": ["box", "circle", "diamond", "ellipse", "triangle", "text", "textblock", "line", "arrow", "path", "callout", "legend"],
+                        "enum": ["box", "circle", "diamond", "ellipse", "triangle", "text", "textblock", "line", "arrow", "path", "polygon", "pen", "compound", "image", "callout", "legend"],
                     },
                     "id": {"type": "string", "description": "Unique ID for connections"},
                     "text": {"type": "string"},
@@ -77,8 +77,29 @@ DIAGRAM_SCHEMA: Dict[str, Any] = {
                         "description": "Path points: list of [x,y] or [x,y,cmd] where cmd is M/L/Q/C",
                         "items": {"type": "array", "items": {"type": ["number", "string"]}},
                     },
-                    "closed": {"type": "boolean", "description": "Close path with Z (outline)"},
+                    "closed": {"type": "boolean", "description": "Close path/pen with Z (outline)"},
                     "arrowhead": {"type": "string", "enum": ["none", "end", "start", "both"]},
+                    "smooth": {"type": "boolean", "description": "Catmull-Rom smoothing for pen strokes"},
+                    "holes": {
+                        "type": "array",
+                        "description": "Polygon inner rings (cuts). Each hole is a list of [x,y] points.",
+                        "items": {"type": "array", "items": {"type": "array", "items": {"type": "number"}}},
+                    },
+                    "op": {
+                        "type": "string",
+                        "enum": ["union", "difference", "cut", "intersection"],
+                        "description": "Boolean operation for compound shapes",
+                    },
+                    "shapes": {
+                        "type": "array",
+                        "description": "Operand shapes for a compound (circle/ellipse/box/diamond/triangle/polygon)",
+                        "items": {"type": "object"},
+                    },
+                    "resolution": {"type": "number", "description": "Boolean raster cell size in px (smaller = smoother)"},
+                    "src": {"type": "string", "description": "Local path to a raster (png/jpg/webp) or svg to embed"},
+                    "prompt": {"type": "string", "description": "Image-gen prompt for hard 3D/photoreal insets (no labels)"},
+                    "cache_dir": {"type": "string", "description": "Directory for generated-image cache"},
+                    "model": {"type": "string", "description": "litellm image model id (default openai/dall-e-3)"},
                     "anchor_x": {"type": "number"},
                     "anchor_y": {"type": "number"},
                     "anchor": {"type": "string"},
@@ -154,6 +175,10 @@ and output a JSON specification that recreates it using clean geometric primitiv
 | line | x1, y1, x2, y2 | text, color, stroke_dash | Plain line. stroke_dash="5,3" for dashed |
 | arrow | x1, y1, x2, y2 | text, color, stroke_dash, curve | Free-form arrow with arrowhead at (x2,y2). `curve` is a perpendicular offset in px for a quadratic Bezier bow (positive bows right of travel direction, negative left). Use for annotations/leader lines that don't anchor to a shape id |
 | path | points | text, color, stroke_dash, closed, arrowhead, fill_opacity | Multi-segment polyline/curve. `points` is a list of [x,y] or [x,y,cmd] where cmd is "M","L","Q" (next entry is control point), or "C" (next two entries are control points). `closed`: true closes the outline (Z). `arrowhead`: "none" (default), "end", "start", or "both". Use for wavy lines, brackets, curved annotations, custom outlines |
+| polygon | points | holes, text, color, stroke_color, fill_opacity, rotation | Filled closed region. `points` is a list of ≥3 [x,y] vertices. `holes` is a list of inner rings (each a list of [x,y]) that punch through the fill (even-odd). Use for leaves, crystals, irregular lobes. Overlapping polygons simply stack (painter's algorithm) — use `compound` to merge or cut them |
+| pen | points | smooth, closed, text, color, stroke_dash | Freehand stroke (fill=none). `smooth`: true interpolates a Catmull-Rom spline. `closed`: true joins last→first. Use for tree branches, flagella, handwritten annotations |
+| compound | shapes | op, text, color, fill_opacity, resolution | Boolean combination of primitive shapes. `shapes` is a list of {type, ...} dicts (circle/ellipse/box/diamond/triangle/polygon). `op`: "union" (merge overlapping blobs — clouds), "difference"/"cut" (punch holes — donuts, vacuoles), "intersection" (overlap only). `resolution` is raster cell size in px (default 1.5; smaller = smoother outline) |
+| image | x, y | w, h, src, prompt, cache_dir, model, text, id | Raster panel *inside* a vector diagram. `src` embeds a local png/jpg/webp/svg as a data URI. `prompt` generates a hard figure (3D model, micrograph) via litellm and embeds the result. Always keep labels/arrows as vector elements — do not ask the image model to paint text. Prefer vectors (box/pen/polygon/compound) unless the subject cannot be drawn geometrically. |
 | callout | x, y, text | anchor_x, anchor_y (or anchor=element id), id, color, font_size, stroke_dash, rotation | Anchored label with a leader line from the anchor point to the label, plus a small anchor dot. Use to annotate a specific point or element. If `anchor` is an element id, the leader attaches to that element's boundary; if `anchor_x`/`anchor_y` are given they pin the leader to that coordinate. |
 | legend | x, y | w, h, id, title, color, entries, swatch_shape, stroke_dash, fill_opacity, rotation | Bordered panel with swatch+label rows. `entries` is a list of {label, color, swatch_shape?}. `swatch_shape` defaults to "rect" (or "circle"). Good for color keys |
 
@@ -332,6 +357,17 @@ def validate_spec(spec: Dict[str, Any]) -> List[str]:
             issues.append(f"element {idx}: missing arrow endpoints")
         if el_type == "path" and "points" not in el:
             issues.append(f"element {idx}: missing path points")
+        if el_type == "polygon" and "points" not in el:
+            issues.append(f"element {idx}: missing polygon points")
+        if el_type == "pen" and "points" not in el:
+            issues.append(f"element {idx}: missing pen points")
+        if el_type == "compound" and not el.get("shapes"):
+            issues.append(f"element {idx}: missing compound shapes")
+        if el_type == "image":
+            if not el.get("src") and not el.get("prompt"):
+                issues.append(f"element {idx}: image needs src or prompt")
+            if "x" not in el or "y" not in el:
+                issues.append(f"element {idx}: missing x or y")
         if el_type == "callout":
             if not el.get("text"):
                 issues.append(f"element {idx}: missing text")

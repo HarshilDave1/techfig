@@ -7,9 +7,13 @@ Supported shapes: box, circle, diamond, ellipse, triangle.
 Standalone elements: text (free-floating labels), textblock (multi-line wrapped
 text with a panel background), line (plain lines),
 arrow (free-form arrow by coordinates), path (multi-segment polyline/curve),
+polygon (filled closed region, optional holes),
+pen (freehand stroke, optional Catmull-Rom smoothing),
+compound (boolean union / cut / intersection of shapes),
 callout (anchored label with leader line),
 legend (bordered panel with swatch+label rows),
-plot (inline matplotlib chart embedded as a nested SVG).
+plot (inline matplotlib chart embedded as a nested SVG),
+image (embedded raster or generated 3D/photoreal inset; labels stay vector).
 Connections: arrow (with arrowhead), connection (plain line between elements).
 """
 from typing import Dict, List, Any, Optional
@@ -22,7 +26,7 @@ from techfig.components.standard import render_schemdraw_component
 # Shapes the engine can render as nodes
 SUPPORTED_SHAPES = ("box", "circle", "diamond", "ellipse", "triangle")
 # Path-like standalone elements (not anchored to a node id)
-SUPPORTED_PATHS = ("line", "arrow", "path")
+SUPPORTED_PATHS = ("line", "arrow", "path", "polygon", "pen", "compound")
 
 
 def _estimate_text_bbox(el: Dict[str, Any], default_font_size: float = 14.0) -> tuple[float, float, float, float]:
@@ -192,6 +196,10 @@ def create_diagram(
             - ``arrow``: ``x1``, ``y1``, ``x2``, ``y2`` + optional ``curve``
             - ``path``: ``points`` (list of [x,y] or [x,y,cmd]) + optional
               ``closed`` (bool), ``arrowhead`` ("none"|"end"|"start"|"both")
+            - ``polygon``: ``points`` (>=3 [x,y]) + optional ``holes`` (list of rings)
+            - ``pen``: ``points`` (>=2 [x,y]) + optional ``smooth``, ``closed``
+            - ``compound``: ``shapes`` (list of primitive dicts) + ``op``
+              (union|difference|cut|intersection)
             - ``callout``: ``x``, ``y``, ``text`` + ``anchor_x``/``anchor_y``
               or ``anchor`` (id of a previously defined element) + optional
               ``font_size``, ``color``
@@ -231,6 +239,8 @@ def create_diagram(
                 w = h = float(el.get("r", 40)) * 2
             elif el.get("type") == "ellipse":
                 w = h = float(el.get("rx", 50)) * 2, float(el.get("ry", 30)) * 2
+            elif el.get("type") == "image":
+                w, h = float(el.get("w", 160)), float(el.get("h", 120))
             else:
                 w, h = 0, 0
             _el_pos[eid] = (x, y, w, h)
@@ -400,6 +410,79 @@ def create_diagram(
                 **style_kw,
             )
 
+        elif el_type == "polygon":
+            raw_points = el.get("points", [])
+            if not raw_points or len(raw_points) < 3:
+                raise ValueError(
+                    f"polygon element '{el_id}' needs a 'points' list with at least 3 entries"
+                )
+            points = []
+            for p in raw_points:
+                if not isinstance(p, (list, tuple)) or len(p) < 2:
+                    raise ValueError(
+                        f"polygon element '{el_id}': each point must be [x, y]"
+                    )
+                points.append((float(p[0]), float(p[1])))
+            holes = []
+            for hole in el.get("holes") or []:
+                ring = []
+                for p in hole:
+                    if not isinstance(p, (list, tuple)) or len(p) < 2:
+                        raise ValueError(
+                            f"polygon element '{el_id}': each hole point must be [x, y]"
+                        )
+                    ring.append((float(p[0]), float(p[1])))
+                holes.append(ring)
+            builder.add_polygon(
+                points,
+                holes=holes or None,
+                text=text, element_id=el_id, color=color,
+                stroke_color=el.get("stroke_color", "stroke"),
+                **({"stroke_width": el["stroke_width"]} if "stroke_width" in el else {}),
+                **style_kw,
+            )
+
+        elif el_type == "pen":
+            raw_points = el.get("points", [])
+            if not raw_points or len(raw_points) < 2:
+                raise ValueError(
+                    f"pen element '{el_id}' needs a 'points' list with at least 2 entries"
+                )
+            points = []
+            for p in raw_points:
+                if not isinstance(p, (list, tuple)) or len(p) < 2:
+                    raise ValueError(
+                        f"pen element '{el_id}': each point must be [x, y]"
+                    )
+                points.append((float(p[0]), float(p[1])))
+            builder.add_pen(
+                points,
+                text=text, element_id=el_id, color=color,
+                smooth=bool(el.get("smooth", False)),
+                closed=bool(el.get("closed", False)),
+                **({"stroke_width": el["stroke_width"]} if "stroke_width" in el else {}),
+                **style_kw,
+            )
+
+        elif el_type == "compound":
+            shapes = el.get("shapes")
+            if not isinstance(shapes, list) or not shapes:
+                raise ValueError(
+                    f"compound element '{el_id}' needs a non-empty 'shapes' list"
+                )
+            compound_kw: Dict[str, Any] = dict(style_kw)
+            if "resolution" in el:
+                compound_kw["resolution"] = float(el["resolution"])
+            if "stroke_width" in el:
+                compound_kw["stroke_width"] = el["stroke_width"]
+            builder.add_compound(
+                shapes,
+                op=el.get("op", "union"),
+                text=text, element_id=el_id, color=color,
+                stroke_color=el.get("stroke_color", "stroke"),
+                **compound_kw,
+            )
+
         elif el_type == "callout":
             builder.add_callout(
                 float(el.get("x", 0)), float(el.get("y", 0)),
@@ -440,6 +523,33 @@ def create_diagram(
                 style_name=el.get("style", "nature"),
             )
 
+        elif el_type == "image":
+            src = el.get("src")
+            prompt = el.get("prompt")
+            if not src and not prompt:
+                raise ValueError(
+                    f"image element '{el_id}' needs a 'src' path or a 'prompt'"
+                )
+            if not src:
+                from techfig.engines.image_gen import generate_figure_image
+
+                cache_dir = el.get("cache_dir")
+                gen_kwargs = {}
+                if el.get("model"):
+                    gen_kwargs["model"] = el["model"]
+                src = generate_figure_image(
+                    str(prompt),
+                    cache_dir=cache_dir,
+                    **gen_kwargs,
+                )
+            builder.add_image(
+                float(el.get("x", 0)), float(el.get("y", 0)),
+                float(el.get("w", 160)), float(el.get("h", 120)),
+                src=str(src),
+                text=text, element_id=el_id,
+                **style_kw,
+            )
+
         else:
             # Try component registry for custom/lab-folder components
             registry = get_registry()
@@ -463,7 +573,7 @@ def create_diagram(
                 raise ValueError(
                     f"Unknown element type: '{el_type}'. "
                     f"Supported: {', '.join(SUPPORTED_SHAPES)}, text, textblock, line, arrow, path, "
-                    f"callout, legend, plot, or any registered component."
+                    f"polygon, pen, compound, image, callout, legend, plot, or any registered component."
                 )
 
 

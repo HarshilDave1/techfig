@@ -8,8 +8,10 @@ callout (anchored label with leader line).
 Text blocks: add_textblock for multi-line wrapped text inside a panel background.
 All shapes accept optional styling: stroke_dash, fill_opacity, rotation.
 """
+import base64
 import logging
 import re
+from pathlib import Path
 from typing import Dict, Any, Iterable, Optional, Sequence, Tuple, Union
 
 import drawsvg as draw
@@ -1010,6 +1012,308 @@ class SVGBuilder:
                 font_family=self._font_family(),
                 fill=self._text_color(),
             ))
+
+    def add_polygon(
+        self,
+        points: list,
+        holes: Optional[Sequence[Sequence]] = None,
+        text: str = "",
+        element_id: str = "",
+        color: str = "primary",
+        **kwargs,
+    ) -> None:
+        """Add a filled closed polygon, optionally with punched holes.
+
+        ``points``: outer ring, at least 3 (x, y) vertices.
+        ``holes``: optional list of inner rings; each hole is also ≥3 vertices.
+        Holes use even-odd fill so they cut through the outer fill.
+
+        Unlike ``add_path(..., closed=True)`` this is a *shape*: default fill
+        is the resolved color at the usual pastel opacity, not a stroke-only
+        outline. Use this for leaves, lobes, crystals, and other irregular
+        filled regions.
+        """
+        if len(points) < 3:
+            raise ValueError("add_polygon requires at least 3 points")
+        for hi, hole in enumerate(holes or ()):
+            if len(hole) < 3:
+                raise ValueError(f"add_polygon hole {hi} requires at least 3 points")
+
+        rotation = kwargs.get("rotation", 0)
+        fill = self._resolve_color(color)
+        stroke = self._stroke_color(kwargs.pop("stroke_color", "stroke"))
+        stroke_width = float(kwargs.pop("stroke_width", self._stroke_width()))
+        style_attrs, kwargs = self._extract_style_kwargs(kwargs)
+
+        xs = [float(p[0]) for p in points]
+        ys = [float(p[1]) for p in points]
+        for hole in holes or ():
+            xs.extend(float(p[0]) for p in hole)
+            ys.extend(float(p[1]) for p in hole)
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        cx = (min_x + max_x) / 2
+        cy = (min_y + max_y) / 2
+        w = max_x - min_x
+        h = max_y - min_y
+
+        path_kwargs: Dict[str, Any] = {
+            "fill": fill,
+            "stroke": stroke,
+            "stroke_width": stroke_width,
+            **style_attrs,
+            **kwargs,
+        }
+        if holes:
+            path_kwargs["fill_rule"] = "evenodd"
+
+        path = draw.Path(**path_kwargs)
+
+        def _ring(ring: Sequence) -> None:
+            first = True
+            for pt in ring:
+                x, y = float(pt[0]), float(pt[1])
+                if first:
+                    path.M(x, y)
+                    first = False
+                else:
+                    path.L(x, y)
+            path.Z()
+
+        _ring(points)
+        for hole in holes or ():
+            _ring(hole)
+
+        group = draw.Group(id=element_id) if element_id else draw.Group()
+        group.append(path)
+        if text:
+            group.append(draw.Text(
+                text, self._font_size(),
+                x=cx, y=cy, center=True,
+                font_family=self._font_family(),
+                fill=self._text_color(),
+            ))
+        _apply_rotation(group, cx, cy, rotation)
+        self.drawing.append(group)
+        if element_id:
+            self._elements[element_id] = (cx, cy, w, h)
+
+    def add_pen(
+        self,
+        points: list,
+        text: str = "",
+        element_id: str = "",
+        color: str = "stroke",
+        smooth: bool = False,
+        closed: bool = False,
+        **kwargs,
+    ) -> None:
+        """Add a freehand pen stroke through a list of (x, y) points.
+
+        Stroke-only (fill=none) by default — this is a drawing tool, not a
+        filled region. Use ``smooth=True`` to interpolate a Catmull-Rom
+        spline (emitted as cubic Béziers). ``closed=True`` joins the last
+        point back to the first.
+        """
+        if len(points) < 2:
+            raise ValueError("add_pen requires at least 2 points")
+
+        rotation = kwargs.get("rotation", 0)
+        if str(color).startswith("#"):
+            stroke = str(color)
+        elif color == "stroke":
+            stroke = self._stroke_color("stroke")
+        else:
+            stroke = self._resolve_color(color)
+        stroke_width = float(kwargs.pop("stroke_width", self._stroke_width()))
+        style_attrs, kwargs = self._extract_style_kwargs(kwargs, default_fill_opacity=-1)
+
+        pts = [(float(p[0]), float(p[1])) for p in points]
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        cx = (min(xs) + max(xs)) / 2
+        cy = (min(ys) + max(ys)) / 2
+        w = max(xs) - min(xs)
+        h = max(ys) - min(ys)
+
+        path = draw.Path(
+            stroke=stroke,
+            stroke_width=stroke_width,
+            fill="none",
+            stroke_linecap="round",
+            stroke_linejoin="round",
+            **style_attrs,
+            **kwargs,
+        )
+
+        if not smooth:
+            path.M(pts[0][0], pts[0][1])
+            for x, y in pts[1:]:
+                path.L(x, y)
+            if closed:
+                path.Z()
+        else:
+            # Uniform Catmull-Rom → cubic Bézier. Duplicate endpoints for
+            # open paths; wrap indices for closed loops.
+            n = len(pts)
+            if closed:
+                ext = [pts[(i - 1) % n] for i in range(n + 3)]
+                segs = n
+            else:
+                ext = [pts[0]] + pts + [pts[-1]]
+                segs = n - 1
+            path.M(pts[0][0], pts[0][1])
+            for i in range(segs):
+                p0, p1, p2, p3 = ext[i], ext[i + 1], ext[i + 2], ext[i + 3]
+                c1x = p1[0] + (p2[0] - p0[0]) / 6.0
+                c1y = p1[1] + (p2[1] - p0[1]) / 6.0
+                c2x = p2[0] - (p3[0] - p1[0]) / 6.0
+                c2y = p2[1] - (p3[1] - p1[1]) / 6.0
+                path.C(c1x, c1y, c2x, c2y, p2[0], p2[1])
+            if closed:
+                path.Z()
+
+        group = draw.Group(id=element_id) if element_id else draw.Group()
+        group.append(path)
+        if text:
+            group.append(draw.Text(
+                text, self._font_size() * 0.8,
+                x=cx, y=cy - 10, center=True,
+                font_family=self._font_family(),
+                fill=self._text_color(),
+            ))
+        _apply_rotation(group, cx, cy, rotation)
+        self.drawing.append(group)
+        if element_id:
+            self._elements[element_id] = (cx, cy, w, h)
+
+    def add_compound(
+        self,
+        shapes: Sequence[Dict[str, Any]],
+        op: str = "union",
+        text: str = "",
+        element_id: str = "",
+        color: str = "primary",
+        resolution: float = 1.5,
+        **kwargs,
+    ) -> None:
+        """Combine primitive shapes with a boolean op and draw the result.
+
+        ``shapes``: list of shape dicts (``type`` + geometry: circle/ellipse/
+        box/diamond/triangle/polygon). ``op`` is ``union``, ``difference``
+        (alias ``cut``), or ``intersection``. Holes from difference use
+        even-odd fill so they punch through.
+        """
+        from techfig.utils.boolean import boolean_paths
+
+        if not shapes:
+            raise ValueError("add_compound requires at least one shape")
+
+        rings = boolean_paths(list(shapes), op=op, resolution=resolution)
+        if not rings:
+            return
+
+        rotation = kwargs.get("rotation", 0)
+        fill = self._resolve_color(color)
+        stroke = self._stroke_color(kwargs.pop("stroke_color", "stroke"))
+        stroke_width = float(kwargs.pop("stroke_width", self._stroke_width()))
+        style_attrs, kwargs = self._extract_style_kwargs(kwargs)
+
+        all_xy: list[tuple[float, float]] = []
+        for ring in rings:
+            all_xy.extend(ring)
+        xs = [p[0] for p in all_xy]
+        ys = [p[1] for p in all_xy]
+        cx = (min(xs) + max(xs)) / 2
+        cy = (min(ys) + max(ys)) / 2
+        w = max(xs) - min(xs)
+        h = max(ys) - min(ys)
+
+        path_kwargs: Dict[str, Any] = {
+            "fill": fill,
+            "stroke": stroke,
+            "stroke_width": stroke_width,
+            **style_attrs,
+            **kwargs,
+        }
+        if len(rings) > 1:
+            path_kwargs["fill_rule"] = "evenodd"
+
+        path = draw.Path(**path_kwargs)
+        for ring in rings:
+            first = True
+            for x, y in ring:
+                if first:
+                    path.M(x, y)
+                    first = False
+                else:
+                    path.L(x, y)
+            path.Z()
+
+        group = draw.Group(id=element_id) if element_id else draw.Group()
+        group.append(path)
+        if text:
+            group.append(draw.Text(
+                text, self._font_size(),
+                x=cx, y=cy, center=True,
+                font_family=self._font_family(),
+                fill=self._text_color(),
+            ))
+        _apply_rotation(group, cx, cy, rotation)
+        self.drawing.append(group)
+        if element_id:
+            self._elements[element_id] = (cx, cy, w, h)
+
+    def add_image(
+        self,
+        x: float,
+        y: float,
+        w: float,
+        h: float,
+        src: str,
+        text: str = "",
+        element_id: str = "",
+        **kwargs,
+    ) -> None:
+        """Embed a raster (or SVG) file as an ``<image>`` panel.
+
+        ``(x, y)`` is the panel center; ``w``/``h`` are user units. The file
+        is inlined as a data URI so the SVG is self-contained. Use this for
+        hard figures (3D models, micrographs) that sit *inside* a vector
+        diagram — labels and arrows stay as SVG.
+        """
+        path = Path(src)
+        if not path.is_file():
+            raise FileNotFoundError(f"image source not found: {src}")
+
+        mime = {
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+            ".gif": "image/gif",
+            ".svg": "image/svg+xml",
+        }.get(path.suffix.lower(), "image/png")
+        href = f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
+
+        rotation = kwargs.get("rotation", 0)
+        group = draw.Group(id=element_id) if element_id else draw.Group()
+        group.append(draw.Raw(
+            f'<image x="{x - w / 2}" y="{y - h / 2}" width="{w}" height="{h}" '
+            f'href="{href}" preserveAspectRatio="xMidYMid meet" />'
+        ))
+        if text:
+            group.append(draw.Text(
+                text, self._font_size() * 0.8,
+                x=x, y=y + h / 2 + self._font_size(),
+                center=True,
+                font_family=self._font_family(),
+                fill=self._text_color(),
+            ))
+        _apply_rotation(group, x, y, rotation)
+        self.drawing.append(group)
+        if element_id:
+            self._elements[element_id] = (x, y, w, h)
 
     def add_callout(
         self,

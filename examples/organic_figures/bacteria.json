@@ -1,0 +1,130 @@
+{
+  "canvas": {"width": 1000, "height": 640},
+  "style": {
+    "font_family": "Helvetica, Arial, sans-serif",
+    "font_size": 15,
+    "stroke_width": 1.8,
+    "colors": {
+      "primary": "#d55e00",
+      "secondary": "#e69f00",
+      "accent": "#0072b2",
+      "background": "#fffaf5",
+      "text": "#333333"
+    }
+  },
+  "elements": [
+    {
+      "type": "text",
+      "x": 0,
+      "y": -270,
+      "text": "Gram-negative rod — cut vacuole, pen flagella, polygon pili",
+      "font_size": 19,
+      "color": "#333333"
+    },
+    {
+      "type": "compound",
+      "id": "soma",
+      "op": "cut",
+      "resolution": 1.0,
+      "shapes": [
+        {"type": "ellipse", "x": 0, "y": 10, "rx": 170, "ry": 78},
+        {"type": "circle", "x": 45, "y": -8, "r": 26}
+      ],
+      "color": "#f4a261",
+      "fill_opacity": 0.92,
+      "stroke_color": "#b35c1e"
+    },
+    {
+      "type": "circle",
+      "id": "nucleoid",
+      "x": -50,
+      "y": 18,
+      "r": 28,
+      "color": "#e76f51",
+      "fill_opacity": 0.85,
+      "stroke_color": "#9c3d26"
+    },
+    {
+      "type": "pen",
+      "id": "flagellum",
+      "points": [
+        [168, 10],
+        [210, -25],
+        [250, 20],
+        [295, -30],
+        [340, 18],
+        [385, -12]
+      ],
+      "smooth": true,
+      "color": "#6d4c41",
+      "stroke_width": 3.5
+    },
+    {
+      "type": "pen",
+      "id": "pilus1",
+      "points": [[-140, -50], [-190, -95], [-230, -80]],
+      "smooth": true,
+      "color": "#5d4037",
+      "stroke_width": 2.5
+    },
+    {
+      "type": "pen",
+      "id": "pilus2",
+      "points": [[-155, 40], [-210, 75], [-250, 55]],
+      "smooth": true,
+      "color": "#5d4037",
+      "stroke_width": 2.5
+    },
+    {
+      "type": "polygon",
+      "id": "fim1",
+      "points": [[-232, -88], [-248, -72], [-258, -92]],
+      "color": "#5d4037",
+      "fill_opacity": 1.0
+    },
+    {
+      "type": "polygon",
+      "id": "fim2",
+      "points": [[-252, 48], [-268, 68], [-278, 46]],
+      "color": "#5d4037",
+      "fill_opacity": 1.0
+    },
+    {
+      "type": "callout",
+      "x": 70,
+      "y": -155,
+      "text": "vacuole (cut)",
+      "anchor_x": 45,
+      "anchor_y": -8,
+      "color": "#0072b2",
+      "font_size": 13
+    },
+    {
+      "type": "callout",
+      "x": 300,
+      "y": 95,
+      "text": "flagellum (pen, smooth)",
+      "anchor_x": 295,
+      "anchor_y": -10,
+      "color": "#0072b2",
+      "font_size": 13
+    },
+    {
+      "type": "callout",
+      "x": -50,
+      "y": 145,
+      "text": "nucleoid",
+      "anchor": "nucleoid",
+      "color": "#0072b2",
+      "font_size": 13
+    },
+    {
+      "type": "text",
+      "x": -250,
+      "y": -130,
+      "text": "pili (pen + polygon)",
+      "font_size": 12,
+      "color": "#0072b2"
+    }
+  ]
+}

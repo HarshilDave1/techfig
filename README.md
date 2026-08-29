@@ -91,6 +91,10 @@ Custom styles via YAML files — see `templates/styles/example_custom.yaml`.
 
 See the `examples/` directory for working scripts, sample data, and the `optical_diagram_spec.json` demo.
 
+Organic / freehand drawing tools (`polygon`, `pen`, `compound` union/cut) live in `examples/organic_figures/` — clouds, trees, bacteria as reconstruct specs.
+
+Hybrid figures (vector labels + generated 3D/photoreal inset) live in `examples/hybrid_figures/`. Use `type: image` with `src` or `prompt` — do **not** use `--pretty` if you want the SVG to stay editable.
+
 ## Development
 
 ```bash

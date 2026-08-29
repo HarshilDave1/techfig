@@ -54,8 +54,8 @@ def snap_to_grid(spec: Dict[str, Any], grid_size: float = 20.0) -> Dict[str, Any
         for k in keys_to_snap:
             if k in el and _is_numeric(el[k]):
                 el[k] = snap(el[k])
-        # Snap path point coordinates too
-        if el.get("type") == "path" and isinstance(el.get("points"), list):
+        # Snap path / polygon / pen point coordinates too
+        if el.get("type") in ("path", "polygon", "pen") and isinstance(el.get("points"), list):
             new_points = []
             for p in el["points"]:
                 if isinstance(p, (list, tuple)):
