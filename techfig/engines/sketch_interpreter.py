@@ -18,6 +18,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from techfig.engines.diagrams import create_diagram
+from techfig.engines.geo_linter import compile_layout
 
 
 
@@ -413,6 +414,8 @@ def render_from_spec(
     if issues:
         raise ValueError("Invalid diagram spec:\n" + "\n".join(f"  - {i}" for i in issues))
 
+    spec = compile_layout(spec)
+
     canvas = spec.get("canvas", {})
     width = canvas.get("width", 1200)
     height = canvas.get("height", 800)
@@ -494,7 +497,7 @@ def auto_refine(
     output_dir: str,
     reference_image_path: Optional[str] = None,
     max_rounds: int = 5,
-    model: str = "anthropic/claude-3-5-sonnet-20241022",
+    model: str = "openai/grok-4-6",
 ) -> Dict[str, Any]:
     """Run an autonomous autoresearch loop to iteratively improve a diagram spec.
     
@@ -516,6 +519,7 @@ def auto_refine(
     from techfig.engines.autoresearch import critique_report
     from techfig.engines.geo_linter import snap_to_grid, align_rows_and_cols
     from litellm import completion as litellm_completion
+    from techfig.engines.llm_defaults import completion_kwargs
 
     program_text = """You are an autonomous diagram improvement agent.
 
@@ -559,7 +563,7 @@ Output ONLY the complete, updated valid JSON spec matching the required schema. 
                 response = litellm_completion(
                     model=model,
                     messages=messages,
-                    temperature=0.7
+                    **completion_kwargs(temperature=0.7),
                 )
                 res_text = response.choices[0].message.content
 
@@ -609,7 +613,7 @@ Output ONLY the complete, updated valid JSON spec matching the required schema. 
 def sketch_to_diagram(
     image_path: str,
     output_path: str,
-    model: str = "gemini/gemini-2.5-pro",
+    model: str = "openai/grok-4-6",
     auto_refine_rounds: int = 0,
 ) -> str:
     """End-to-end command: take an image, use a Vision LLM to get a JSON spec, and render it.
@@ -626,6 +630,7 @@ def sketch_to_diagram(
     import base64
     from litellm import completion
     from techfig.engines.aesthetic_critic import extract_json_from_response
+    from techfig.engines.llm_defaults import completion_kwargs
     import mimetypes
     import os
 
@@ -654,7 +659,7 @@ def sketch_to_diagram(
         },
     ]
 
-    response = completion(model=model, messages=messages)
+    response = completion(model=model, messages=messages, **completion_kwargs())
     reply_text = response.choices[0].message.content
 
     # 3. Extract JSON spec

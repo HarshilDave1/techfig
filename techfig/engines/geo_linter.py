@@ -443,3 +443,121 @@ def lint_spec(spec: Dict[str, Any], grid_size: float = 20.0, align_tolerance: fl
 def score_geometry(spec: Dict[str, Any]) -> float:
     """Shortcut function to return just the 0-1 geometric score."""
     return lint_spec(spec).score
+
+
+def _element_bbox(el: Dict[str, Any]) -> tuple | None:
+    """Axis-aligned bbox (left, top, right, bottom) in center-origin coords."""
+    t = el.get("type")
+    try:
+        if t == "circle":
+            r = float(el.get("r", 0))
+            x, y = float(el.get("x", 0)), float(el.get("y", 0))
+            return (x - r, y - r, x + r, y + r)
+        if t == "ellipse":
+            rx = float(el.get("rx", 0))
+            ry = float(el.get("ry", 0))
+            x, y = float(el.get("x", 0)), float(el.get("y", 0))
+            return (x - rx, y - ry, x + rx, y + ry)
+        if t in ("box", "diamond", "triangle", "image", "plot", "legend", "textblock"):
+            w = float(el.get("w", 0))
+            h = float(el.get("h", 0))
+            x, y = float(el.get("x", 0)), float(el.get("y", 0))
+            return (x - w / 2, y - h / 2, x + w / 2, y + h / 2)
+        if t == "text":
+            text = str(el.get("text", ""))
+            font = float(el.get("font_size", 14))
+            w = len(text) * font * 0.6
+            h = font
+            x, y = float(el.get("x", 0)), float(el.get("y", 0))
+            return (x - w / 2, y - h / 2, x + w / 2, y + h / 2)
+        if t in ("line", "arrow"):
+            x1, y1 = float(el.get("x1", 0)), float(el.get("y1", 0))
+            x2, y2 = float(el.get("x2", 0)), float(el.get("y2", 0))
+            return (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+        if t in ("path", "polygon", "pen") and isinstance(el.get("points"), list):
+            xs, ys = [], []
+            for p in el["points"]:
+                if isinstance(p, (list, tuple)) and len(p) >= 2 and _is_numeric(p[0]) and _is_numeric(p[1]):
+                    xs.append(float(p[0]))
+                    ys.append(float(p[1]))
+            if xs:
+                return (min(xs), min(ys), max(xs), max(ys))
+        if t == "callout":
+            x, y = float(el.get("x", 0)), float(el.get("y", 0))
+            ax = float(el.get("anchor_x", x))
+            ay = float(el.get("anchor_y", y))
+            text = str(el.get("text", ""))
+            font = float(el.get("font_size", 14))
+            w = max(len(text) * font * 0.6, 8.0)
+            h = font
+            return (min(x - w / 2, ax), min(y - h / 2, ay), max(x + w / 2, ax), max(y + h / 2, ay))
+    except (TypeError, ValueError, KeyError):
+        return None
+    return None
+
+
+def content_bbox(spec: Dict[str, Any]) -> tuple | None:
+    """Union bbox of all sizable elements, or None if empty."""
+    boxes = [_element_bbox(el) for el in spec.get("elements", [])]
+    boxes = [b for b in boxes if b is not None]
+    if not boxes:
+        return None
+    return (
+        min(b[0] for b in boxes),
+        min(b[1] for b in boxes),
+        max(b[2] for b in boxes),
+        max(b[3] for b in boxes),
+    )
+
+
+def compile_layout(spec: Dict[str, Any], margin: float = 40.0) -> Dict[str, Any]:
+    """Deterministic post-LLM pass: park labels, then grow canvas so content fits.
+
+    Does not move shapes. Width/height become at least
+    ``2 * max(|extent|) + 2 * margin`` on each axis.
+    """
+    new_spec = copy.deepcopy(spec)
+    _park_labels(new_spec)
+    canvas = dict(new_spec.get("canvas") or {})
+    width = float(canvas.get("width", 1200) or 1200)
+    height = float(canvas.get("height", 800) or 800)
+    bbox = content_bbox(new_spec)
+    if bbox is not None:
+        left, top, right, bottom = bbox
+        half_w = max(abs(left), abs(right)) + float(margin)
+        half_h = max(abs(top), abs(bottom)) + float(margin)
+        width = max(width, 2.0 * half_w)
+        height = max(height, 2.0 * half_h)
+    canvas["width"] = int(round(width))
+    canvas["height"] = int(round(height))
+    new_spec["canvas"] = canvas
+    return new_spec
+
+
+_LABEL_TYPES = {"text", "callout"}
+
+
+def _park_labels(spec: Dict[str, Any], gutter: float = 12.0) -> None:
+    """Move free text/callout labels out of overlapping shape AABBs (in place)."""
+    elements = spec.get("elements") or []
+    shapes = [el for el in elements if el.get("type") not in _LABEL_TYPES]
+    labels = [el for el in elements if el.get("type") in _LABEL_TYPES]
+    for label in labels:
+        if "x" not in label or "y" not in label:
+            continue
+        for _ in range(8):
+            lb = _element_bbox(label)
+            if lb is None:
+                break
+            hit = None
+            for shape in shapes:
+                sb = _element_bbox(shape)
+                if sb is not None and _bboxes_overlap(lb, sb):
+                    hit = sb
+                    break
+            if hit is None:
+                break
+            text = str(label.get("text", ""))
+            font = float(label.get("font_size", 14) or 14)
+            half_w = max(len(text) * font * 0.6, 8.0) / 2.0
+            label["x"] = hit[2] + float(gutter) + half_w

@@ -98,7 +98,7 @@ def render_to_png(svg_path: str, png_path: str) -> None:
 
 def score_aesthetic(
     svg_path: str, 
-    model: str = "anthropic/claude-3-5-sonnet-20241022",
+    model: str = "openai/grok-4-6",
     reference_image_path: Optional[str] = None
 ) -> Tuple[float, str]:
     """Score the aesthetic and visual quality of a rendered SVG diagram.
@@ -176,10 +176,11 @@ def score_aesthetic(
         ]
 
         # Ensure we have an API key or let litellm handle it via env fallback
+        from techfig.engines.llm_defaults import completion_kwargs
         response = completion(
             model=model,
             messages=messages,
-            temperature=0.1
+            **completion_kwargs(temperature=0.1),
         )
         
         res_text = response.choices[0].message.content

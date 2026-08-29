@@ -9,7 +9,7 @@ DEFAULT_CONFIG = {
     "dpi": 300,
     "quality": "l",
     "max_rounds": 5,
-    "sketch_model": "gemini/gemini-2.5-pro",
+    "sketch_model": "openai/grok-4-6",
 }
 
 def load_config() -> dict:
