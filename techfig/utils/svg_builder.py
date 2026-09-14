@@ -823,17 +823,20 @@ class SVGBuilder:
         x1: float, y1: float, x2: float, y2: float,
         text: str = "",
         stroke_color: str = "stroke",
+        element_id: str = "",
         **kwargs,
     ) -> None:
         """Add a plain line (no arrowhead). Supports stroke_dash for dashed lines."""
         style_attrs, kwargs = self._extract_style_kwargs(kwargs, default_fill_opacity=-1)
         label_y_override = kwargs.pop("label_y_override", None)
         color = self._stroke_color(stroke_color)
+        id_attrs = {"id": element_id} if element_id else {}
 
         self.drawing.append(draw.Line(
             x1, y1, x2, y2,
             stroke=color,
             stroke_width=self._stroke_width(),
+            **id_attrs,
             **style_attrs,
             **kwargs,
         ))
@@ -858,6 +861,7 @@ class SVGBuilder:
         text: str = "",
         stroke_color: str = "stroke",
         curve: Optional[float] = None,
+        element_id: str = "",
         **kwargs,
     ) -> None:
         """Add a standalone arrow by explicit coordinates (not element ids).
@@ -882,6 +886,7 @@ class SVGBuilder:
             stroke_width=self._stroke_width(),
             fill="none",
             marker_end=arrow_marker,
+            **({"id": element_id} if element_id else {}),
             **style_attrs,
             **kwargs,
         )
@@ -919,6 +924,7 @@ class SVGBuilder:
         stroke_color: str = "stroke",
         closed: bool = False,
         arrowhead: str = "none",
+        element_id: str = "",
         **kwargs,
     ) -> None:
         """Add a multi-segment path from a list of points.
@@ -961,6 +967,7 @@ class SVGBuilder:
             fill=fill,
             marker_end=marker,
             marker_start=start_marker,
+            **({"id": element_id} if element_id else {}),
             **style_attrs,
             **kwargs,
         )

@@ -145,6 +145,16 @@ def main():
     math_p.add_argument("input", help="JSON file with widget spec (equation + variables)")
     math_p.add_argument("-o", "--output", required=True, help="Output HTML file")
 
+    # ---- interactive ------------------------------------------------------
+    interactive_p = subparsers.add_parser(
+        "interactive",
+        help="Generate a self-contained interactive HTML widget from a parametric diagram spec",
+    )
+    interactive_p.add_argument("input", help="JSON diagram spec (with optional params + {{expr}} bindings)")
+    interactive_p.add_argument("-o", "--output", required=True, help="Output HTML file")
+    interactive_p.add_argument("--title", help="Optional widget title")
+
+
     # ---- diagram-anim ----------------------------------------------------
     diaganim_p = subparsers.add_parser(
         "diagram-anim",
@@ -394,6 +404,14 @@ def main():
             description=spec.get("description", "")
         )
         print(f"Math widget saved to {out}")
+
+    elif args.command == "interactive":
+        from techfig.engines.interactive_svg import create_interactive_svg
+        with open(args.input, "r") as f:
+            spec = json.load(f)
+        print(f"Generating interactive widget {args.input} -> {args.output}...")
+        out = create_interactive_svg(spec, args.output, title=args.title)
+        print(f"Interactive widget saved to {out}")
 
     elif args.command == "diagram-anim":
         from techfig.engines.diagram_manim_bridge import render_diagram_animation

@@ -371,7 +371,8 @@ def create_diagram(
             builder.add_line(
                 float(el.get("x1", 0)), float(el.get("y1", 0)),
                 float(el.get("x2", 100)), float(el.get("y2", 0)),
-                text=text, stroke_color=el.get("stroke_color", color), **style_kw,
+                text=text, stroke_color=el.get("stroke_color", color),
+                element_id=el_id, **style_kw,
             )
 
         elif el_type == "arrow":
@@ -383,7 +384,7 @@ def create_diagram(
                 float(el.get("x2", 100)), float(el.get("y2", 0)),
                 text=text, stroke_color=color,
                 curve=float(curve) if curve is not None else None,
-                **style_kw,
+                element_id=el_id, **style_kw,
             )
 
         elif el_type == "path":
@@ -407,6 +408,7 @@ def create_diagram(
                 text=text, stroke_color=color,
                 closed=bool(el.get("closed", False)),
                 arrowhead=el.get("arrowhead", "none"),
+                element_id=el_id,
                 **style_kw,
             )
 
