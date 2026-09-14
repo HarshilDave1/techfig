@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from techfig.engines.diagrams import create_diagram
 from techfig.engines.geo_linter import compile_layout
+from techfig.engines.params import resolve_spec
 
 
 
@@ -146,6 +147,31 @@ DIAGRAM_SCHEMA: Dict[str, Any] = {
                     "stroke_dash": {"type": "string"},
                 },
                 "required": ["from", "to"],
+            },
+        },
+        "params": {
+            "type": "array",
+            "description": "Interactive parameters",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "min": {"type": "number"},
+                    "max": {"type": "number"},
+                    "step": {"type": "number"},
+                    "value": {},
+                    "label": {"type": "string"},
+                    "unit": {"type": "string"},
+                },
+                "required": ["name", "min", "max", "step", "value"],
+            },
+        },
+        "model": {
+            "type": "object",
+            "description": "Model functions (source or file) exposed to bindings",
+            "properties": {
+                "source": {"type": "string"},
+                "file": {"type": "string"},
             },
         },
     },
@@ -410,6 +436,8 @@ def render_from_spec(
     Raises:
         ValueError: If spec validation fails.
     """
+    spec, _bindings = resolve_spec(spec)
+
     issues = validate_spec(spec)
     if issues:
         raise ValueError("Invalid diagram spec:\n" + "\n".join(f"  - {i}" for i in issues))
