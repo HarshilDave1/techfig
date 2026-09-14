@@ -10,6 +10,7 @@ import builtins
 import copy
 import math
 import re
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 _BINDING_RE = re.compile(r"\{\{(.+?)\}\}")
@@ -19,7 +20,7 @@ class UnsafeExpression(ValueError):
     """Raised when an expression attempts something outside the whitelist."""
 
 
-def _check_node(node: ast.AST) -> None:
+def _check_node(node: ast.AST, env_callables: Tuple[str, ...] = ()) -> None:
     """Validate that ``node`` is within the allowed AST subset.
 
     Allowed nodes:
@@ -29,7 +30,8 @@ def _check_node(node: ast.AST) -> None:
     - arithmetic/logic: BinOp, UnaryOp, Compare, BoolOp, IfExp
     - operators: Add, Sub, Mult, Div, FloorDiv, Mod, Pow, USub, UAdd, Not,
       Eq, NotEq, Lt, LtE, Gt, GtE, And, Or
-    - function calls: Call (limited to ``math.<fn>`` and helpers)
+    - function calls: Call (limited to ``math.<fn>``, helpers, and model
+      functions from ``env_callables``)
 
     Everything else is rejected with a clear message.
     """
@@ -90,13 +92,17 @@ def _check_node(node: ast.AST) -> None:
             if not (isinstance(func.value, ast.Name) and func.value.id == "math"):
                 raise UnsafeExpression("Only 'math.<function>' attribute access is allowed")
         elif isinstance(func, ast.Name):
-            if func.id not in _HELPER_FUNCS:
+            if func.id in _HELPER_FUNCS:
+                pass  # built-in helper handled at eval time
+            elif func.id in env_callables:
+                pass  # model function exposed to bindings (T3)
+            else:
                 raise UnsafeExpression(f"Function '{func.id}' is not allowed")
         else:
             raise UnsafeExpression("Only direct calls or 'math.<function>' calls are allowed")
 
     for child in ast.iter_child_nodes(node):
-        _check_node(child)
+        _check_node(child, env_callables)
 
 
 _ALLOWED_MATH = {
@@ -148,7 +154,10 @@ def safe_eval(expr: str, env: Dict[str, Any] | None = None) -> Any:
     except SyntaxError as exc:
         raise UnsafeExpression(f"Invalid expression syntax: {expr}") from exc
 
-    _check_node(tree)
+    env_callables = tuple(sorted(
+        k for k, v in env.items() if callable(v)
+    ))
+    _check_node(tree, env_callables)
 
     def _eval(node: ast.AST) -> Any:
         if isinstance(node, ast.Constant):
@@ -252,6 +261,8 @@ def safe_eval(expr: str, env: Dict[str, Any] | None = None) -> Any:
                     if len(args) != 1:
                         raise UnsafeExpression("sum() takes exactly 1 argument")
                     return sum(args[0])
+                if fn in env and callable(env[fn]):
+                    return env[fn](*args, **kwargs)
                 # abs, min, max, round, len
                 try:
                     builtin = getattr(builtins, fn)
@@ -329,9 +340,53 @@ def _resolve_value(value: Any, env: Dict[str, Any], path: List[str | int], bindi
     return value
 
 
+def load_model_source(model: Dict[str, Any], base_dir: str | None = None) -> str:
+    """Return the restricted model source declared by a spec's ``model`` block.
+
+    The block is ``{"source": "..."}`` or ``{"file": "model.py"}`` — a relative
+    ``file`` path is resolved against ``base_dir`` (the spec file's directory).
+    """
+    if not isinstance(model, dict):
+        raise ValueError("'model' must be an object with 'source' or 'file'")
+    has_source, has_file = "source" in model, "file" in model
+    if has_source and has_file:
+        raise ValueError("'model' must have either 'source' or 'file', not both")
+    if has_source:
+        if not isinstance(model["source"], str) or not model["source"].strip():
+            raise ValueError("'model.source' must be a non-empty string")
+        return model["source"]
+    if has_file:
+        path = Path(model["file"])
+        if not path.is_absolute() and base_dir:
+            path = Path(base_dir) / path
+        if not path.is_file():
+            raise FileNotFoundError(f"Model file not found: {path}")
+        return path.read_text(encoding="utf-8")
+    raise ValueError("'model' must have a 'source' or 'file' key")
+
+
+def load_model(
+    spec: Dict[str, Any],
+    base_dir: str | None = None,
+) -> Dict[str, Any]:
+    """Load a spec's model functions.
+
+    Returns ``{function name: callable}`` for the spec's ``model`` block
+    (validated restricted Python — see ``techfig.engines.model_transpile``),
+    or ``{}`` when the spec declares no model.
+    """
+    model = spec.get("model")
+    if model is None:
+        return {}
+    from techfig.engines.model_transpile import exec_model_source
+
+    return exec_model_source(load_model_source(model, base_dir))
+
+
 def resolve_spec(
     spec: Dict[str, Any],
     param_values: Dict[str, Any] | None = None,
+    base_dir: str | None = None,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """Resolve a parametric spec to a concrete spec at the given parameters.
 
@@ -339,6 +394,11 @@ def resolve_spec(
     ``max``, ``step``, and ``value`` (plus optional ``label`` and ``unit``).
     When ``param_values`` is omitted, defaults are taken from each parameter's
     ``value`` field.
+
+    The top-level ``model`` block (``{"source": ...}`` or ``{"file": ...}``,
+    file paths relative to ``base_dir``) defines restricted-Python model
+    functions; they are exposed to bindings by name, so ``{{R(n1, d, lam)}}``
+    calls the model function ``R``.
 
     Any string field that is exactly ``{{expr}}`` is replaced by the evaluated
     result (which may be a number, list, or string).  Strings that contain
@@ -348,6 +408,8 @@ def resolve_spec(
         spec: Diagram specification dict, possibly containing parametric bindings.
         param_values: Optional mapping of parameter names to values.  Missing
             names use the declared default ``value``.
+        base_dir: Base directory for resolving a relative ``model.file``
+            (typically the directory of the JSON spec file).
 
     Returns:
         ``(concrete_spec, bindings)`` where ``bindings`` is a list of dicts
@@ -356,6 +418,7 @@ def resolve_spec(
 
     Raises:
         UnsafeExpression: If a binding uses disallowed syntax or an unknown name.
+        ValueError: On invalid ``params``/``model`` declarations.
     """
     spec = copy.deepcopy(spec)
     params = spec.get("params", [])
@@ -370,6 +433,14 @@ def resolve_spec(
         if not name:
             raise ValueError("Each param must have a 'name'")
         env[name] = param_values.get(name, p.get("value")) if param_values else p.get("value")
+
+    model_fns = load_model(spec, base_dir)
+    collisions = sorted(set(env) & set(model_fns))
+    if collisions:
+        raise ValueError(
+            f"model function name '{collisions[0]}' collides with a param name"
+        )
+    env.update(model_fns)
 
     bindings: List[Dict[str, Any]] = []
     concrete: Dict[str, Any] = {}

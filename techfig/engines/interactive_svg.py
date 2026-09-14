@@ -38,7 +38,7 @@ import json
 import re
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 from xml.etree import ElementTree as ET
 
 from techfig.engines.model_transpile import TranspileError, expr_to_js
@@ -159,11 +159,12 @@ def _contains_binding(value: Any) -> bool:
     return False
 
 
-def _value_to_js(value: Any) -> Tuple[str, str]:
+def _value_to_js(value: Any, extra_funcs: Iterable[str] = ()) -> Tuple[str, str]:
     """Convert a spec field value (possibly containing bindings) to JS source.
 
     Returns ``(js, kind)`` where kind is ``'value'`` for whole-field bindings
-    and ``'text'`` for interpolated strings.
+    and ``'text'`` for interpolated strings.  ``extra_funcs`` whitelists model
+    function names as call targets.
     """
     if isinstance(value, str):
         if not _BINDING_RE.search(value):
@@ -171,14 +172,14 @@ def _value_to_js(value: Any) -> Tuple[str, str]:
         stripped = value.strip()
         m = _BINDING_RE.fullmatch(stripped)
         if m:
-            return expr_to_js(m.group(1).strip()), "value"
+            return expr_to_js(m.group(1).strip(), extra_funcs=extra_funcs), "value"
         parts: List[str] = []
         last = 0
         for bm in _BINDING_RE.finditer(value):
             lit = value[last:bm.start()]
             if lit:
                 parts.append(json.dumps(lit))
-            parts.append("(" + expr_to_js(bm.group(1).strip()) + ")")
+            parts.append("(" + expr_to_js(bm.group(1).strip(), extra_funcs=extra_funcs) + ")")
             last = bm.end()
         lit = value[last:]
         if lit:
@@ -189,7 +190,7 @@ def _value_to_js(value: Any) -> Tuple[str, str]:
     if isinstance(value, list):
         items = []
         for item in value:
-            item_js, _ = _value_to_js(item)
+            item_js, _ = _value_to_js(item, extra_funcs)
             items.append(item_js)
         return "[" + ", ".join(items) + "]", "value"
     if isinstance(value, bool):
@@ -448,6 +449,7 @@ def _build_bindings(
     spec: Dict[str, Any],
     concrete: Dict[str, Any],
     svg_root: ET.Element,
+    model_funcs: Iterable[str] = (),
 ) -> List[Dict[str, Any]]:
     entries: List[Dict[str, Any]] = []
     elements = spec.get("elements", [])
@@ -458,7 +460,7 @@ def _build_bindings(
             if field in ("type", "id"):
                 continue
             if _contains_binding(value):
-                bound[field] = _value_to_js(value)
+                bound[field] = _value_to_js(value, extra_funcs=model_funcs)
         if not bound:
             continue
         el_id = el.get("id", "")
@@ -597,6 +599,7 @@ def create_interactive_svg(
     spec: dict,
     output_path: str,
     title: str | None = None,
+    base_dir: str | None = None,
 ) -> str:
     """Create a self-contained interactive HTML widget from a parametric spec.
 
@@ -604,11 +607,24 @@ def create_interactive_svg(
         spec: Diagram spec with optional ``params`` and ``{{expr}}`` bindings.
         output_path: Where to write the HTML file.
         title: Optional page title (heading + <title>).
+        base_dir: Base directory for resolving a relative ``model.file``
+            (typically the directory of the JSON spec file).
 
     Returns:
         Absolute path to the generated HTML file.
     """
     spec = copy.deepcopy(spec)
+
+    # 0. Load the model (validates the restricted source on both sides).
+    from techfig.engines.model_transpile import module_to_js
+    from techfig.engines.params import load_model, load_model_source
+
+    model_js = ""
+    model_funcs: List[str] = []
+    if spec.get("model"):
+        model_source = load_model_source(spec["model"], base_dir)
+        model_js = module_to_js(model_source) + "\n"
+        model_funcs = sorted(load_model(spec, base_dir))
 
     # 0. Validate params.
     raw_params = spec.get("params", [])
@@ -658,17 +674,17 @@ def create_interactive_svg(
     # 2. Render the concrete SVG at default params via the existing pipeline.
     tmpdir = tempfile.mkdtemp(prefix="tf_interactive_")
     svg_file = str(Path(tmpdir) / "static.svg")
-    render_from_spec(spec, svg_file)
+    render_from_spec(spec, svg_file, base_dir=base_dir)
     svg_text = Path(svg_file).read_text(encoding="utf-8")
 
     # 3. Resolve the concrete spec (same defaults) for geometry constants.
-    concrete, _ = resolve_spec(spec)
+    concrete, _ = resolve_spec(spec, base_dir=base_dir)
 
     # 4. Parse the rendered SVG (rendered label positions, transforms).
     svg_root = ET.fromstring(svg_text.encode("utf-8"))
 
     # 5. Build the bindings table.
-    entries = _build_bindings(spec, concrete, svg_root)
+    entries = _build_bindings(spec, concrete, svg_root, model_funcs=model_funcs)
 
     # 6. Assemble the page.
     svg_inline = re.sub(r"^<\?xml[^>]*\?>\s*", "", svg_text).strip()
@@ -722,7 +738,7 @@ figure svg {{ max-width: 100%; height: auto; display: block; }}
 {svg_inline}
 </figure>
 <script>
-var __TF_BINDINGS = {bindings_json};
+{model_js}var __TF_BINDINGS = {bindings_json};
 var __TF_PARAMS = {params_json};
 {_RUNTIME_JS}
 </script>

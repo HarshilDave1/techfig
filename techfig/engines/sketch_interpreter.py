@@ -422,6 +422,7 @@ def render_from_spec(
     spec: Dict[str, Any],
     output_path: str,
     style_config: Dict[str, Any] | None = None,
+    base_dir: Optional[str] = None,
 ) -> str:
     """Render a diagram from a validated JSON spec.
 
@@ -429,6 +430,8 @@ def render_from_spec(
         spec: Diagram specification dict (canvas, elements, connections).
         output_path: Where to save the SVG.
         style_config: Optional style overrides. Merged with spec's own style.
+        base_dir: Base directory for resolving a relative ``model.file``
+            (typically the directory of the JSON spec file).
 
     Returns:
         Absolute path to the generated SVG.
@@ -436,7 +439,7 @@ def render_from_spec(
     Raises:
         ValueError: If spec validation fails.
     """
-    spec, _bindings = resolve_spec(spec)
+    spec, _bindings = resolve_spec(spec, base_dir=base_dir)
 
     issues = validate_spec(spec)
     if issues:
@@ -485,7 +488,7 @@ def render_from_json(
     with open(path) as f:
         spec = json.load(f)
 
-    return render_from_spec(spec, output_path, style_config)
+    return render_from_spec(spec, output_path, style_config, base_dir=str(path.parent))
 
 
 def format_refinement_context(

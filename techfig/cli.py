@@ -2,6 +2,7 @@
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from techfig.engines.figures import create_chart, CHART_TYPES
 from techfig.engines.diagrams import create_flowchart
@@ -153,6 +154,14 @@ def main():
     interactive_p.add_argument("input", help="JSON diagram spec (with optional params + {{expr}} bindings)")
     interactive_p.add_argument("-o", "--output", required=True, help="Output HTML file")
     interactive_p.add_argument("--title", help="Optional widget title")
+
+    # ---- verify-model ------------------------------------------------------
+    verify_p = subparsers.add_parser(
+        "verify-model",
+        help="Cross-check a spec's model functions between Python and Node",
+    )
+    verify_p.add_argument("input", help="JSON diagram spec (with a model block)")
+    verify_p.add_argument("--samples", type=int, default=50, help="Random samples per function")
 
 
     # ---- diagram-anim ----------------------------------------------------
@@ -410,8 +419,30 @@ def main():
         with open(args.input, "r") as f:
             spec = json.load(f)
         print(f"Generating interactive widget {args.input} -> {args.output}...")
-        out = create_interactive_svg(spec, args.output, title=args.title)
+        out = create_interactive_svg(
+            spec, args.output, title=args.title, base_dir=str(Path(args.input).parent)
+        )
         print(f"Interactive widget saved to {out}")
+
+    elif args.command == "verify-model":
+        from techfig.engines.model_transpile import verify_model
+        from techfig.engines.params import load_model_source
+        print(f"Verifying model in {args.input}...")
+        with open(args.input, "r") as f:
+            spec = json.load(f)
+        if not spec.get("model"):
+            print("Error: spec has no 'model' block", file=sys.stderr)
+            sys.exit(1)
+        source = load_model_source(spec["model"], str(Path(args.input).parent))
+        param_ranges = {
+            p["name"]: (float(p["min"]), float(p["max"]))
+            for p in spec.get("params", [])
+            if isinstance(p, dict) and "min" in p and "max" in p
+        }
+        report = verify_model(source, param_ranges, n_samples=args.samples)
+        print(json.dumps(report, indent=2))
+        if report.get("ok") is False:
+            sys.exit(1)
 
     elif args.command == "diagram-anim":
         from techfig.engines.diagram_manim_bridge import render_diagram_animation
