@@ -163,6 +163,13 @@ def main():
     verify_p.add_argument("input", help="JSON diagram spec (with a model block)")
     verify_p.add_argument("--samples", type=int, default=50, help="Random samples per function")
 
+    # ---- explain ----------------------------------------------------------
+    explain_p = subparsers.add_parser(
+        "explain",
+        help="Assemble a single-file interactive explainer page from markdown and diagram specs",
+    )
+    explain_p.add_argument("input", help="Markdown document path")
+    explain_p.add_argument("-o", "--output", required=True, help="Output HTML file")
 
     # ---- diagram-anim ----------------------------------------------------
     diaganim_p = subparsers.add_parser(
@@ -443,6 +450,12 @@ def main():
         print(json.dumps(report, indent=2))
         if report.get("ok") is False:
             sys.exit(1)
+
+    elif args.command == "explain":
+        from techfig.engines.explain import assemble_explainer_page
+        print(f"Assembling explainer {args.input} -> {args.output}...")
+        out = assemble_explainer_page(args.input, args.output)
+        print(f"Explainer page saved to {out}")
 
     elif args.command == "diagram-anim":
         from techfig.engines.diagram_manim_bridge import render_diagram_animation

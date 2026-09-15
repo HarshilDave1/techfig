@@ -976,20 +976,23 @@ _RUNTIME_JS = r"""(function () {
     }
     return s;
   }
-  var PARAM_NAMES = Object.keys(__TF_PARAMS);
-  var ARGS = PARAM_NAMES.concat(["__fmt", "__tf_sum", "__tf_d", "__tf_series_d"]);
-  function valueOf(b) {
+
+  function valueOf(b, params) {
+    var paramNames = Object.keys(params);
+    var args = paramNames.concat(["__fmt", "__tf_sum", "__tf_d", "__tf_series_d"]);
     if (!b._fn) {
-      b._fn = new Function(ARGS.join(","), "return (" + b.js + ");");
+      b._fn = new Function(args.join(","), "return (" + b.js + ");");
     }
     var vals = [];
-    for (var i = 0; i < PARAM_NAMES.length; i++) {
-      vals.push(__TF_PARAMS[PARAM_NAMES[i]]);
+    for (var i = 0; i < paramNames.length; i++) {
+      vals.push(params[paramNames[i]]);
     }
     vals.push(__fmt, __tf_sum, __tf_d, __tf_series_d);
     return b._fn.apply(null, vals);
   }
-  function applyBinding(b) {
+
+  function applyBinding(b, params) {
+    if (typeof document === "undefined" || !document.getElementById) return;
     var el = document.getElementById(b.id);
     if (!el) return;
     if (b.sel) {
@@ -997,7 +1000,7 @@ _RUNTIME_JS = r"""(function () {
       if (!el) return;
     }
     if (b.kind === "class" || b.kind === "classToggle") {
-      var cond = Boolean(valueOf(b));
+      var cond = Boolean(valueOf(b, params));
       if (cond) {
         if (b.falseClass) el.classList.remove(b.falseClass);
         if (b.trueClass) el.classList.add(b.trueClass);
@@ -1008,65 +1011,114 @@ _RUNTIME_JS = r"""(function () {
       return;
     }
     if (b.kind === "visibility") {
-      var visible = Boolean(valueOf(b));
+      var visible = Boolean(valueOf(b, params));
       el.style.display = visible ? "" : "none";
       return;
     }
-    var v = valueOf(b);
+    var v = valueOf(b, params);
     if (b.attr === "textContent") {
       el.textContent = v;
       return;
     }
     el.setAttribute(b.attr, String(v));
   }
-  function update() {
-    var controls = document.querySelectorAll(".tf-param");
+
+  function updateFig(fig) {
+    if (typeof document === "undefined" || !document.querySelectorAll) return;
+    var sel = fig.id ? '.tf-param[data-fig="' + fig.id + '"]' : '.tf-param';
+    var controls = document.querySelectorAll(sel);
     for (var i = 0; i < controls.length; i++) {
       var name = controls[i].getAttribute("data-name");
       var v = controls[i].tagName === "SELECT" ? controls[i].value : parseFloat(controls[i].value);
-      __TF_PARAMS[name] = v;
+      fig.params[name] = v;
       if (typeof globalThis !== "undefined") globalThis[name] = v;
-      var outs = document.querySelectorAll('output.tf-value[data-name="' + name + '"]');
+      var outSel = fig.id
+        ? 'output.tf-value[data-fig="' + fig.id + '"][data-name="' + name + '"]'
+        : 'output.tf-value[data-name="' + name + '"]';
+      var outs = document.querySelectorAll(outSel);
       for (var j = 0; j < outs.length; j++) {
         var unit = outs[j].getAttribute("data-unit");
         outs[j].textContent = String(v) + (unit ? " " + unit : "");
       }
     }
-    for (var k = 0; k < __TF_BINDINGS.length; k++) {
-      var b = __TF_BINDINGS[k];
+    for (var k = 0; k < fig.bindings.length; k++) {
+      var b = fig.bindings[k];
       if (b.kind !== "class" && b.kind !== "classToggle" && b.kind !== "visibility") {
-        applyBinding(b);
+        applyBinding(b, fig.params);
       }
     }
-    for (var k = 0; k < __TF_BINDINGS.length; k++) {
-      var b = __TF_BINDINGS[k];
+    for (var k = 0; k < fig.bindings.length; k++) {
+      var b = fig.bindings[k];
       if (b.kind === "class" || b.kind === "classToggle") {
-        applyBinding(b);
+        applyBinding(b, fig.params);
       }
     }
-    for (var k = 0; k < __TF_BINDINGS.length; k++) {
-      var b = __TF_BINDINGS[k];
+    for (var k = 0; k < fig.bindings.length; k++) {
+      var b = fig.bindings[k];
       if (b.kind === "visibility") {
-        applyBinding(b);
+        applyBinding(b, fig.params);
       }
     }
   }
-  var controls = document.querySelectorAll(".tf-param");
-  for (var n = 0; n < controls.length; n++) {
-    controls[n].addEventListener("input", update);
-    controls[n].addEventListener("change", update);
-  }
-  for (var p in __TF_PARAMS) {
-    if (typeof globalThis !== "undefined" && typeof globalThis[p] === "undefined") {
-      globalThis[p] = __TF_PARAMS[p];
+
+  function register(figId, bindings, params) {
+    figId = figId || "";
+    var fig = {
+      id: figId,
+      bindings: bindings || [],
+      params: params || {},
+      update: function () { updateFig(fig); }
+    };
+    tf.figs[figId] = fig;
+    if (!tf.bindings || figId === "") {
+      tf.bindings = fig.bindings;
+      tf.params = fig.params;
+      tf.update = function () {
+        for (var f in tf.figs) {
+          if (tf.figs[f] && tf.figs[f].update) {
+            tf.figs[f].update();
+          }
+        }
+      };
     }
+    for (var p in fig.params) {
+      if (typeof globalThis !== "undefined" && typeof globalThis[p] === "undefined") {
+        globalThis[p] = fig.params[p];
+      }
+    }
+    var sel = figId ? '.tf-param[data-fig="' + figId + '"]' : '.tf-param';
+    var controls = (typeof document !== "undefined" && document.querySelectorAll) ? document.querySelectorAll(sel) : [];
+    for (var n = 0; n < controls.length; n++) {
+      controls[n].addEventListener("input", fig.update);
+      controls[n].addEventListener("change", fig.update);
+    }
+    fig.update();
+    return fig;
   }
-  window.__tf = { params: __TF_PARAMS, update: update, bindings: __TF_BINDINGS, fmt: __fmt, series_d: __tf_series_d };
+
+  var tf = (typeof window !== "undefined" && window.__tf) ? window.__tf : {};
+  tf.figs = tf.figs || {};
+  tf.fmt = __fmt;
+  tf.sum = __tf_sum;
+  tf.d = __tf_d;
+  tf.series_d = __tf_series_d;
+  tf.register = register;
+  if (typeof window !== "undefined") {
+    window.__tf = tf;
+  }
   if (typeof globalThis !== "undefined") {
+    globalThis.__tf = tf;
     globalThis.__tf_series_d = __tf_series_d;
   }
-  update();
+  if (typeof __TF_PARAMS !== "undefined" && typeof __TF_BINDINGS !== "undefined") {
+    register("", __TF_BINDINGS, __TF_PARAMS);
+  }
 })();"""
+
+
+def runtime_js() -> str:
+    """Return the vanilla-JS runtime script for interactive figures."""
+    return _RUNTIME_JS
 
 
 # ---- page assembly ---------------------------------------------------------
@@ -1079,8 +1131,10 @@ def _fmt_num(v: float) -> str:
     return repr(f)
 
 
-def _control_html(p: Dict[str, Any]) -> str:
+def _control_html(p: Dict[str, Any], fig_id: str = "") -> str:
     name = p["name"]
+    ctrl_id = f"{fig_id}-p-{name}" if fig_id else f"tf-p-{name}"
+    data_fig = f' data-fig="{fig_id}"' if fig_id else ""
     if p.get("kind") == "state":
         options_html = []
         for opt in p.get("options", []):
@@ -1089,8 +1143,8 @@ def _control_html(p: Dict[str, Any]) -> str:
         opts_str = "\n".join(options_html)
         return (
             f'  <div class="tf-control">\n'
-            f'    <label for="tf-p-{name}">{p["label"]}</label>\n'
-            f'    <select class="tf-param" data-name="{name}" id="tf-p-{name}">\n'
+            f'    <label for="{ctrl_id}">{p["label"]}</label>\n'
+            f'    <select class="tf-param" data-name="{name}"{data_fig} id="{ctrl_id}">\n'
             f'{opts_str}\n'
             f'    </select>\n'
             f'  </div>'
@@ -1100,12 +1154,12 @@ def _control_html(p: Dict[str, Any]) -> str:
     data_unit = f' data-unit="{p["unit"]}"' if p["unit"] else ""
     return (
         f'  <div class="tf-control">\n'
-        f'    <label for="tf-p-{name}">{p["label"]}</label>\n'
-        f'    <input type="range" class="tf-param" data-name="{name}" '
-        f'id="tf-p-{name}" min="{_fmt_num(p["min"])}" max="{_fmt_num(p["max"])}" '
+        f'    <label for="{ctrl_id}">{p["label"]}</label>\n'
+        f'    <input type="range" class="tf-param" data-name="{name}"{data_fig} '
+        f'id="{ctrl_id}" min="{_fmt_num(p["min"])}" max="{_fmt_num(p["max"])}" '
         f'step="{_fmt_num(p["step"])}" value="{val}">\n'
-        f'    <output class="tf-value" data-name="{name}"{data_unit} '
-        f'for="tf-p-{name}">{out_text}</output>\n'
+        f'    <output class="tf-value" data-name="{name}"{data_fig}{data_unit} '
+        f'for="{ctrl_id}">{out_text}</output>\n'
         f"  </div>"
     )
 
@@ -1125,23 +1179,24 @@ def _css_vars(spec: Dict[str, Any]) -> str:
     )
 
 
-def create_interactive_svg(
-    spec: dict,
-    output_path: str,
-    title: str | None = None,
-    base_dir: str | None = None,
-) -> str:
-    """Create a self-contained interactive HTML widget from a parametric spec.
+def render_interactive_fragment(
+    spec: Dict[str, Any],
+    fig_id: str = "",
+    base_dir: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Render an interactive SVG fragment (controls, SVG, bindings, model).
 
     Args:
         spec: Diagram spec with optional ``params`` and ``{{expr}}`` bindings.
-        output_path: Where to write the HTML file.
-        title: Optional page title (heading + <title>).
-        base_dir: Base directory for resolving a relative ``model.file``
-            (typically the directory of the JSON spec file).
+        fig_id: Optional figure identifier for namespacing (e.g. 'fig1').
+        base_dir: Base directory for resolving a relative ``model.file``.
 
     Returns:
-        Absolute path to the generated HTML file.
+        Dict with keys:
+            svg: Inlined SVG markup.
+            controls_html: HTML markup for sliders/selects.
+            bindings_js: JS code registering bindings and params with the runtime.
+            model_js: Transpiled model functions if present.
     """
     spec = copy.deepcopy(spec)
 
@@ -1158,7 +1213,7 @@ def create_interactive_svg(
         for fn in model_funcs:
             model_js += f"if (typeof globalThis !== 'undefined') globalThis.{fn} = {fn};\n"
 
-    # 0. Validate params.
+    # 1. Validate params.
     raw_params = spec.get("params", [])
     if not isinstance(raw_params, list):
         raise ValueError("'params' must be a list")
@@ -1204,9 +1259,29 @@ def create_interactive_svg(
                 "unit": str(p.get("unit") or ""),
             })
 
-    # 1. Ensure every bound element and connection carries an id BEFORE rendering.
+    prefix = f"{fig_id}-" if fig_id else ""
     elements = spec.get("elements", [])
     connections = spec.get("connections", [])
+    id_map = {}
+    if prefix:
+        for el in elements:
+            if el.get("id"):
+                old_id = el["id"]
+                new_id = f"{prefix}{old_id}"
+                id_map[old_id] = new_id
+                el["id"] = new_id
+        for conn in connections:
+            if conn.get("from") in id_map:
+                conn["from"] = id_map[conn["from"]]
+            if conn.get("to") in id_map:
+                conn["to"] = id_map[conn["to"]]
+            if conn.get("id"):
+                old_id = conn["id"]
+                new_id = f"{prefix}{old_id}"
+                id_map[old_id] = new_id
+                conn["id"] = new_id
+
+    # 2. Ensure every bound element and connection carries an id BEFORE rendering.
     used_ids = {el.get("id") for el in elements if el.get("id")}
     used_ids.update(conn.get("id") for conn in connections if conn.get("id"))
     for idx, el in enumerate(elements):
@@ -1221,7 +1296,7 @@ def create_interactive_svg(
         )
         if not has_binding or el.get("id"):
             continue
-        gen = f"tf-el-{idx}"
+        gen = f"{prefix}tf-el-{idx}"
         while gen in used_ids:
             gen += "x"
         el["id"] = gen
@@ -1229,13 +1304,13 @@ def create_interactive_svg(
 
     for ci, conn in enumerate(connections):
         if "visible_when" in conn and not conn.get("id"):
-            conn_id = f"tf-conn-{ci}"
+            conn_id = f"{prefix}tf-conn-{ci}"
             while conn_id in used_ids:
                 conn_id += "x"
             conn["id"] = conn_id
             used_ids.add(conn_id)
 
-    # 2. Render the concrete SVG at default params via the existing pipeline.
+    # 3. Render the concrete SVG at default params via the existing pipeline.
     render_spec = copy.deepcopy(spec)
     bound_plot_ids = set()
     for el in render_spec.get("elements", []):
@@ -1254,7 +1329,7 @@ def create_interactive_svg(
     render_from_spec(render_spec, svg_file, base_dir=base_dir, skip_hidden=False)
     svg_text = Path(svg_file).read_text(encoding="utf-8")
 
-    # 3. Resolve the concrete spec (same defaults) for geometry constants.
+    # 4. Resolve the concrete spec (same defaults) for geometry constants.
     concrete, _ = resolve_spec(spec, base_dir=base_dir)
 
     # Replace placeholder groups with native SVG plot groups
@@ -1268,17 +1343,70 @@ def create_interactive_svg(
                 pat = re.compile(rf'<g id="{re.escape(el_id)}"[^>]*>.*?</g>', re.DOTALL)
                 svg_text = pat.sub(plot_svg, svg_text, count=1)
 
-    # 4. Parse the rendered SVG (rendered label positions, transforms).
+    # Namespace any internal defs/markers not already prefixed
+    if prefix:
+        def_ids = set(re.findall(r'\bid=["\']([^"\']+)["\']', svg_text))
+        unprefixed = [i for i in def_ids if not i.startswith(prefix)]
+        unprefixed.sort(key=len, reverse=True)
+        for old_id in unprefixed:
+            new_id = f"{prefix}{old_id}"
+            svg_text = re.sub(r'\bid=(["\'])' + re.escape(old_id) + r'\1', f'id=\\1{new_id}\\1', svg_text)
+            svg_text = re.sub(r'url\((["\']?)#' + re.escape(old_id) + r'\1\)', f'url(\\1#{new_id}\\1)', svg_text)
+            svg_text = re.sub(r'(href=["\']?)#' + re.escape(old_id) + r'(["\']?)', f'\\1#{new_id}\\2', svg_text)
+
+    # 5. Parse the rendered SVG (rendered label positions, transforms).
     svg_root = ET.fromstring(svg_text.encode("utf-8"))
 
-    # 5. Build the bindings table.
+    # 6. Build the bindings table.
     entries = _build_bindings(spec, concrete, svg_root, model_funcs=model_funcs)
 
-    # 6. Assemble the page.
+    # 7. Assemble fragment components.
     svg_inline = re.sub(r"^<\?xml[^>]*\?>\s*", "", svg_text).strip()
     bindings_json = json.dumps(entries).replace("</", "<\\/")
     params_json = json.dumps({c["name"]: c["value"] for c in controls})
-    controls_html = "\n".join(_control_html(c) for c in controls)
+    ctrl_items = [_control_html(c, fig_id=fig_id) for c in controls]
+    if ctrl_items:
+        ctrl_id_attr = f' id="{fig_id}-controls"' if fig_id else ""
+        ctrl_fig_attr = f' data-fig="{fig_id}"' if fig_id else ""
+        controls_html = f'<div class="tf-controls"{ctrl_id_attr}{ctrl_fig_attr}>\n' + "\n".join(ctrl_items) + "\n</div>"
+    else:
+        controls_html = ""
+
+    bindings_js = f'__tf.register("{fig_id}", {bindings_json}, {params_json});'
+
+    return {
+        "svg": svg_inline,
+        "controls_html": controls_html,
+        "bindings_js": bindings_js,
+        "model_js": model_js,
+        "entries": entries,
+        "controls": controls,
+        "bindings_json": bindings_json,
+        "params_json": params_json,
+    }
+
+
+def create_interactive_svg(
+    spec: dict,
+    output_path: str,
+    title: str | None = None,
+    base_dir: str | None = None,
+) -> str:
+    """Create a self-contained interactive HTML widget from a parametric spec.
+
+    Args:
+        spec: Diagram spec with optional ``params`` and ``{{expr}}`` bindings.
+        output_path: Where to write the HTML file.
+        title: Optional page title (heading + <title>).
+        base_dir: Base directory for resolving a relative ``model.file``
+            (typically the directory of the JSON spec file).
+
+    Returns:
+        Absolute path to the generated HTML file.
+    """
+    spec = copy.deepcopy(spec)
+    frag = render_interactive_fragment(spec, fig_id="", base_dir=base_dir)
+
     title_text = title or "Interactive figure"
     heading = f'<h1 class="tf-title">{title}</h1>\n' if title else ""
     page = f"""<!DOCTYPE html>
@@ -1330,16 +1458,15 @@ figure svg {{ max-width: 100%; height: auto; display: block; }}
 </style>
 </head>
 <body>
-{heading}<div class="tf-controls">
-{controls_html}
-</div>
+{heading}{frag['controls_html']}
 <figure>
-{svg_inline}
+{frag['svg']}
 </figure>
 <script>
-{model_js}var __TF_BINDINGS = {bindings_json};
-var __TF_PARAMS = {params_json};
-{_RUNTIME_JS}
+{frag['model_js']}var __TF_BINDINGS = {frag['bindings_json']};
+var __TF_PARAMS = {frag['params_json']};
+{runtime_js()}
+{frag['bindings_js']}
 </script>
 </body>
 </html>
@@ -1348,3 +1475,4 @@ var __TF_PARAMS = {params_json};
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(page, encoding="utf-8")
     return str(out)
+
