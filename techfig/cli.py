@@ -95,8 +95,10 @@ def main():
         "critique",
         help="Render a spec to SVG and run deterministic geometric critique (no LLM needed)",
     )
-    crit_p.add_argument("--input", required=True, help="JSON file with diagram spec")
-    crit_p.add_argument("--svg-output", required=True, help="Output SVG file path")
+    crit_p.add_argument("--input", required=False, help="JSON file with diagram spec")
+    crit_p.add_argument("--svg-output", required=False, help="Output SVG file path")
+    crit_p.add_argument("--html", help="Path to interactive HTML file to critique")
+    crit_p.add_argument("--json", "-j", action="store_true", help="Output report as JSON")
     crit_p.add_argument("--fix", action="store_true", help="Apply auto-fixes (snapping to grid and aligning rows/cols) directly to the spec")
 
     # ---- animate ---------------------------------------------------------
@@ -347,35 +349,71 @@ def main():
             print(f"SVG saved to {out}")
 
     elif args.command == "critique":
-        from techfig.engines.autoresearch import critique_report
-        print(f"Critiquing {args.input} → {args.svg_output}...")
-        with open(args.input) as f:
-            spec = json.load(f)
+        if getattr(args, "html", None):
+            from techfig.engines.html_linter import lint_html
+            report = lint_html(args.html)
+            if getattr(args, "json", False):
+                print(json.dumps(report, indent=2))
+            else:
+                print(f"HTML Critique Report for {args.html}:")
+                if report.get("skipped"):
+                    print(f"Skipped: {report['skipped']}")
+                else:
+                    print(f"\nScore: {report['score']:.3f}")
+                    if report.get("inert_controls"):
+                        print(f"Inert controls ({len(report['inert_controls'])}): {', '.join(report['inert_controls'])}")
+                    if report.get("text_overlaps"):
+                        has_overlaps = any(len(pairs) > 0 for pairs in report["text_overlaps"].values())
+                        if has_overlaps:
+                            print("Text overlaps:")
+                            for state, pairs in report["text_overlaps"].items():
+                                if pairs:
+                                    print(f"  [{state}] {pairs}")
+                    if report.get("js_errors"):
+                        print(f"JS errors ({len(report['js_errors'])}):")
+                        for err in report["js_errors"]:
+                            print(f"  - {err}")
+                    if report.get("issues"):
+                        print(f"Issues ({len(report['issues'])}):")
+                        for issue in report["issues"]:
+                            print(f"  - {issue}")
+                    print("\nJSON output:")
+                    print(json.dumps(report, indent=2))
+        else:
+            if not getattr(args, "input", None) or not getattr(args, "svg_output", None):
+                crit_p.error("--input and --svg-output are required when --html is not specified")
+            from techfig.engines.autoresearch import critique_report
+            print(f"Critiquing {args.input} → {args.svg_output}...")
+            with open(args.input) as f:
+                spec = json.load(f)
 
-        if getattr(args, "fix", False):
-            from techfig.engines.geo_linter import snap_to_grid, align_rows_and_cols, fix_text_overlaps, compile_layout
-            spec = fix_text_overlaps(spec)  # de-collide text labels first
-            spec = snap_to_grid(spec, grid_size=10.0)
-            spec = align_rows_and_cols(spec, tolerance=25.0)
-            spec = compile_layout(spec)
-            with open(args.input, "w") as f:
-                json.dump(spec, f, indent=2)
-            print(f"Applied auto-fixes (text de-collision + grid snap + alignment) and updated {args.input}")
+            if getattr(args, "fix", False):
+                from techfig.engines.geo_linter import snap_to_grid, align_rows_and_cols, fix_text_overlaps, compile_layout
+                spec = fix_text_overlaps(spec)  # de-collide text labels first
+                spec = snap_to_grid(spec, grid_size=10.0)
+                spec = align_rows_and_cols(spec, tolerance=25.0)
+                spec = compile_layout(spec)
+                with open(args.input, "w") as f:
+                    json.dump(spec, f, indent=2)
+                print(f"Applied auto-fixes (text de-collision + grid snap + alignment) and updated {args.input}")
 
-        report = critique_report(spec, args.svg_output)
-        # Print human-readable summary
-        print(f"\nScore: {report['score']:.3f}")
-        if report['issues']:
-            print(f"Issues ({len(report['issues'])}):")
-            for issue in report['issues']:
-                print(f"  - {issue}")
-        if report['suggestions']:
-            print("Suggestions:")
-            for s in report['suggestions']:
-                print(f"  → {s}")
-        # Also output JSON to stdout for programmatic use
-        print("\nJSON output:")
-        print(json.dumps({k: v for k, v in report.items() if k != 'spec'}, indent=2))
+            report = critique_report(spec, args.svg_output)
+            if getattr(args, "json", False):
+                print(json.dumps({k: v for k, v in report.items() if k != 'spec'}, indent=2))
+            else:
+                # Print human-readable summary
+                print(f"\nScore: {report['score']:.3f}")
+                if report['issues']:
+                    print(f"Issues ({len(report['issues'])}):")
+                    for issue in report['issues']:
+                        print(f"  - {issue}")
+                if report['suggestions']:
+                    print("Suggestions:")
+                    for s in report['suggestions']:
+                        print(f"  → {s}")
+                # Also output JSON to stdout for programmatic use
+                print("\nJSON output:")
+                print(json.dumps({k: v for k, v in report.items() if k != 'spec'}, indent=2))
     elif args.command == "animate":
         from techfig.engines.animations import create_animation
         print(f"Rendering Manim animation {args.input} -> {args.output}...")
