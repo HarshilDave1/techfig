@@ -79,7 +79,59 @@ techfig batch --input manifest.yaml
 
 # List style presets
 techfig styles
+
+# Generate interactive HTML widget from parametric diagram spec
+techfig interactive spec.json -o widget.html
+
+# Cross-check a spec's model functions between Python and Node
+techfig verify-model spec.json
+
+# Assemble single-file explainer page from markdown and diagram specs
+techfig explain explainer.md -o page.html
+
+# Validate interactive HTML for inert controls, overlaps, and runtime errors
+techfig critique --html widget.html
 ```
+
+## Command Reference
+
+| Command | Usage | Description |
+| --- | --- | --- |
+| `chart` | `techfig chart --data <file> --type <type> -o <out>` | Generate statistical charts (SVG, PNG, or interactive Plotly) |
+| `diagram` | `techfig diagram --input <nodes.json> -o <out>` | Generate structural node-and-edge diagrams |
+| `reconstruct` | `techfig reconstruct <spec.json> -o <out.svg>` | Render clean SVG from diagram spec JSON |
+| `interactive` | `techfig interactive <spec.json> -o <out.html> [--title <t>]` | Generate self-contained interactive HTML widget with live slider bindings |
+| `verify-model` | `techfig verify-model <spec.json> [--samples <N>]` | Cross-check spec model functions between Python and Node |
+| `explain` | `techfig explain <doc.md> -o <out.html>` | Assemble a standalone interactive explainer page from markdown |
+| `critique` | `techfig critique --input <spec.json> --svg-output <out.svg> [--fix]` | Deterministic SVG geometric critique (alignment, overlaps, layout) |
+| `critique --html` | `techfig critique --html <widget.html> [--json]` | Playwright-based inert-control, readout, and text-collision validation |
+| `slides` | `techfig slides --input <slides.json> -o <out.pptx>` | Generate PowerPoint presentations |
+| `tikz` | `techfig tikz --mode [chart\|diagram] ... -o <out.tex>` | Export charts or diagrams to LaTeX/TikZ |
+| `sketch` | `techfig sketch <image> -o <out.svg>` | Convert whiteboard/paper sketch to clean SVG |
+| `animate` | `techfig animate <spec.json> -o <out.mp4>` | Render diagram animation via Manim |
+| `animate-svg` | `techfig animate-svg <input.svg> -o <out.svg>` | Apply CSS/SMIL animations to existing SVG |
+| `panel` | `techfig panel <spec.json> -o <out>` | Multi-panel figure generation |
+| `equation` | `techfig equation "<latex>" -o <out>` | Render LaTeX math equations |
+| `math-widget` | `techfig math-widget <spec.json> -o <out.html>` | Generate interactive math formula widget |
+| `components` | `techfig components [list\|search\|index\|render\|stats\|show]` | Manage standard and lab-folder component libraries |
+| `styles` | `techfig styles` | List available style presets |
+| `prompt` | `techfig prompt` | Print vision system prompt for sketch interpretation |
+| `config` | `techfig config [list\|set] ...` | Manage configuration settings |
+| `export` | `techfig export <in> -o <out> [--dpi <N>]` | Convert between figure formats |
+| `batch` | `techfig batch --input <manifest> [-o <dir>]` | Batch render from manifest |
+
+## Parametric Specs and Interactive Explainers
+
+TechFig diagram specs support parametric reactive bindings, restricted-Python mathematical models, and interactive HTML explainer generation:
+
+- **`params`**: Top-level parameter list with continuous ranges (`min`, `max`, `step`, `value`, `label`, `unit`) or discrete state toggles (`kind: "state"`, `options: [...]`).
+- **`{{expr}}`**: Expressions bound to SVG geometry, text, or styling. Evaluated safely with zero external runtime dependencies in both Python and client-side JavaScript.
+- **`model`**: Python model module (`{"file": "model.py"}` or `{"source": "..."}`) restricted to a safe AST subset (pure math, arithmetic, loops, branches, array building). Model functions are exposed by name to `{{expr}}` bindings and transpiled to vanilla JS. Cross-checked numerically with Node via `techfig verify-model`.
+- **`readout`**: Element displaying live formatted numeric values with optional boolean verdict labels and styling (`tf-verdict-true` / `tf-verdict-false`).
+- **`state` & `visible_when`**: Discrete state parameters rendered as `<select>` controls. Any element or connection can specify `"visible_when": "{{expr}}"` to conditionally toggle visibility.
+- **Static outputs unchanged**: Specs with parametric bindings continue to render statically to SVG via `techfig reconstruct` evaluated at declared default parameter values.
+
+See `examples/arc_thin_film/` for a complete working example of a single-layer anti-reflective coating model, parametric cross-section, live reflectance plot, and explainer page.
 
 ## Styles
 
@@ -89,11 +141,12 @@ Custom styles via YAML files — see `templates/styles/example_custom.yaml`.
 
 ## Examples
 
-See the `examples/` directory for working scripts, sample data, and the `optical_diagram_spec.json` demo.
+See the `examples/` directory for working scripts, sample data, and demos:
 
-Organic / freehand drawing tools (`polygon`, `pen`, `compound` union/cut) live in `examples/organic_figures/` — clouds, trees, bacteria as reconstruct specs.
-
-Hybrid figures (vector labels + generated 3D/photoreal inset) live in `examples/hybrid_figures/`. Use `type: image` with `src` or `prompt` — do **not** use `--pretty` if you want the SVG to stay editable.
+- `examples/arc_thin_film/` — Interactive anti-reflective coating explainer with restricted-Python model, live spectral plot, cross-section diagram, and build script.
+- `examples/optical_diagram_spec.json` — Optical bench setup and ray diagram demo.
+- `examples/organic_figures/` — Freehand drawing tools (`polygon`, `pen`, `compound` union/cut) for clouds, trees, and bacteria.
+- `examples/hybrid_figures/` — Vector labels with generated 3D/photoreal insets using `type: image`.
 
 ## Development
 
@@ -101,3 +154,4 @@ Hybrid figures (vector labels + generated 3D/photoreal inset) live in `examples/
 pip install -e ".[dev]"
 pytest tests/ -v
 ```
+

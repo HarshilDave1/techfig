@@ -1,0 +1,184 @@
+{
+  "canvas": {
+    "width": 900,
+    "height": 520
+  },
+  "style": {
+    "name": "nature"
+  },
+  "params": [
+    {
+      "name": "n1",
+      "min": 1.2,
+      "max": 2.4,
+      "step": 0.01,
+      "value": 1.38,
+      "label": "ARC Index (n₁)"
+    },
+    {
+      "name": "d",
+      "min": 50,
+      "max": 200,
+      "step": 1,
+      "value": 100,
+      "label": "Thickness (d)",
+      "unit": "nm"
+    },
+    {
+      "name": "lam",
+      "min": 400,
+      "max": 800,
+      "step": 1,
+      "value": 550,
+      "label": "Wavelength (λ)",
+      "unit": "nm"
+    },
+    {
+      "name": "state",
+      "kind": "state",
+      "options": ["coated", "bare"],
+      "value": "coated",
+      "label": "State"
+    }
+  ],
+  "model": {
+    "file": "model.py"
+  },
+  "elements": [
+    {
+      "type": "text",
+      "id": "cross_section_title",
+      "x": -210,
+      "y": -180,
+      "text": "Thin-Film Cross-Section",
+      "font_size": 16
+    },
+    {
+      "type": "text",
+      "id": "incident_label",
+      "x": "{{-280 + (lam - 400) * 0.35}}",
+      "y": -155,
+      "text": "Incident Light (λ = {{lam}} nm)",
+      "font_size": 11,
+      "color": "#C0392B"
+    },
+    {
+      "type": "arrow",
+      "id": "incident_ray",
+      "x1": "{{-280 + (lam - 400) * 0.35}}",
+      "y1": -140,
+      "x2": "{{-280 + (lam - 400) * 0.35}}",
+      "y2": -65,
+      "color": "#E74C3C",
+      "stroke_width": 2
+    },
+    {
+      "type": "box",
+      "id": "air_layer",
+      "x": -210,
+      "y": -100,
+      "w": 220,
+      "h": 70,
+      "color": "#EBF5FB",
+      "fill_opacity": 0.8,
+      "stroke_color": "#AEC6CF",
+      "stroke_width": 1.5
+    },
+    {
+      "type": "text",
+      "id": "air_label",
+      "x": -370,
+      "y": -100,
+      "text": "Incident Air (n₀ = 1.0)",
+      "font_size": 13
+    },
+    {
+      "type": "box",
+      "id": "arc_layer",
+      "x": -210,
+      "y": -15,
+      "w": 220,
+      "h": 60,
+      "color": "#D4EFDF",
+      "fill_opacity": 0.9,
+      "stroke_color": "#27AE60",
+      "stroke_width": 2,
+      "visible_when": "{{state == 'coated'}}"
+    },
+    {
+      "type": "text",
+      "id": "arc_label",
+      "x": -370,
+      "y": -15,
+      "text": "ARC Layer (n₁ = {{n1}})",
+      "font_size": 13,
+      "visible_when": "{{state == 'coated'}}",
+      "color": "#1E8449"
+    },
+    {
+      "type": "box",
+      "id": "glass_layer",
+      "x": -210,
+      "y": 80,
+      "w": 220,
+      "h": 90,
+      "color": "#EAECEE",
+      "fill_opacity": 0.8,
+      "stroke_color": "#7F8C8D",
+      "stroke_width": 1.5
+    },
+    {
+      "type": "text",
+      "id": "glass_label",
+      "x": -370,
+      "y": 80,
+      "text": "Substrate Glass (n₂ = 1.5)",
+      "font_size": 13
+    },
+    {
+      "type": "plot",
+      "id": "reflectance_plot",
+      "x": 220,
+      "y": -40,
+      "w": 380,
+      "h": 250,
+      "xlabel": "Wavelength λ (nm)",
+      "ylabel": "Reflectance R",
+      "xlim": [400, 800],
+      "ylim": [0, 0.1],
+      "series": [
+        {
+          "x": "{{sweep(n1, d, 400, 800, 50)[0]}}",
+          "y": "{{sweep(n1, d, 400, 800, 50)[1]}}",
+          "label": "Reflectance R(λ)"
+        }
+      ],
+      "chart": {
+        "type": "line",
+        "data": {
+          "x": "{{sweep(n1, d, 400, 800, 50)[0]}}",
+          "y": "{{sweep(n1, d, 400, 800, 50)[1]}}"
+        },
+        "x_col": "x",
+        "y_col": "y",
+        "title": "Reflectance R(λ)"
+      }
+    },
+    {
+      "type": "readout",
+      "id": "r1",
+      "x": 220,
+      "y": 150,
+      "expr": "R_arc(n1, d, lam)",
+      "format": ".4f",
+      "label": "Reflectance R(λ)",
+      "unit": "",
+      "verdict": {
+        "expr": "R_arc(n1, d, lam) < 0.01",
+        "true": "below 1 %",
+        "false": "above 1 %"
+      },
+      "font_size": 14
+    }
+  ]
+}

@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interactive figure</title>
+<style>
+:root {
+--tf-primary: #0072B2;
+--tf-bg: #FFFFFF;
+--tf-fg: #000000;
+--tf-accent: #009E73;
+--tf-muted: #56B4E9;
+--tf-gray: #888888;
+}
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background: var(--tf-bg);
+  color: var(--tf-fg);
+  max-width: 1000px;
+  margin: 24px auto;
+  padding: 0 16px;
+}
+.tf-title { color: var(--tf-primary); }
+.tf-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  padding: 12px 16px;
+  border: 1px solid var(--tf-primary);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+.tf-control { display: flex; align-items: center; gap: 10px; }
+.tf-control label { font-weight: 600; font-size: 14px; }
+.tf-control input[type="range"] { accent-color: var(--tf-primary); width: 150px; }
+.tf-control select.tf-param {
+  background: var(--tf-bg);
+  color: var(--tf-fg);
+  border: 1px solid var(--tf-primary);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+}
+.tf-value { min-width: 4.5em; font-variant-numeric: tabular-nums; font-size: 14px; }
+figure { margin: 0; }
+figure svg { max-width: 100%; height: auto; display: block; }
+.tf-verdict-true { fill: var(--tf-accent, #009E73); color: var(--tf-accent, #009E73); }
+.tf-verdict-false { fill: var(--tf-muted, #888888); color: var(--tf-muted, #888888); }
+.tf-verdict-true .tf-readout-verdict { fill: var(--tf-accent, #009E73); }
+.tf-verdict-false .tf-readout-verdict { fill: var(--tf-muted, #888888); }
+</style>
+</head>
+<body>
+<div class="tf-controls">
+  <div class="tf-control">
+    <label for="tf-p-n1">ARC Index (n₁)</label>
+    <input type="range" class="tf-param" data-name="n1" id="tf-p-n1" min="1.2" max="2.4" step="0.01" value="1.38">
+    <output class="tf-value" data-name="n1" for="tf-p-n1">1.38</output>
+  </div>
+  <div class="tf-control">
+    <label for="tf-p-d">Thickness (d)</label>
+    <input type="range" class="tf-param" data-name="d" id="tf-p-d" min="50" max="200" step="1" value="100">
+    <output class="tf-value" data-name="d" data-unit="nm" for="tf-p-d">100 nm</output>
+  </div>
+  <div class="tf-control">
+    <label for="tf-p-lam">Wavelength (λ)</label>
+    <input type="range" class="tf-param" data-name="lam" id="tf-p-lam" min="400" max="800" step="1" value="550">
+    <output class="tf-value" data-name="lam" data-unit="nm" for="tf-p-lam">550 nm</output>
+  </div>
+  <div class="tf-control">
+    <label for="tf-p-state">State</label>
+    <select class="tf-param" data-name="state" id="tf-p-state">
+      <option value="coated" selected>coated</option>
+      <option value="bare">bare</option>
+    </select>
+  </div>
+</div>
+<figure>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1330" height="520" viewBox="-665.0 -260.0 1330 520">
+<defs>
+<marker markerWidth="8.0" markerHeight="8.0" viewBox="-0.1 -0.5 1.0 1.0" orient="auto" id="d0">
+<path d="M-0.1,-0.5 L-0.1,0.5 L0.9,0 Z" fill="#E74C3C" />
+</marker>
+</defs>
+<rect x="-665.0" y="-260.0" width="1330" height="520" fill="#FFFFFF" />
+<g id="cross_section_title">
+<text x="-210.0" y="-180.0" font-size="16" font-family="DejaVu Sans, Liberation Sans, sans-serif" fill="#0072B2" text-anchor="middle" dominant-baseline="central">Thin-Film Cross-Section</text>
+</g>
+<g id="incident_label">
+<text x="-227.5" y="-155.0" font-size="11" font-family="DejaVu Sans, Liberation Sans, sans-serif" fill="#C0392B" text-anchor="middle" dominant-baseline="central">Incident Light (λ = 550 nm)</text>
+</g>
+<path d="M-227.5,-140.0 L-227.5,-65.0" stroke="#E74C3C" stroke-width="0.75" fill="none" marker-end="url(#d0)" id="incident_ray" />
+<g id="air_layer">
+<rect x="-320.0" y="-135.0" width="220.0" height="70.0" fill="#EBF5FB" stroke="#AEC6CF" stroke-width="0.75" rx="5" ry="5" fill-opacity="0.8" />
+</g>
+<g id="air_label">
+<text x="511.7" y="-100.0" font-size="13" font-family="DejaVu Sans, Liberation Sans, sans-serif" fill="#0072B2" text-anchor="middle" dominant-baseline="central">Incident Air (n₀ = 1.0)</text>
+</g>
+<g id="arc_layer">
+<rect x="-320.0" y="-45.0" width="220.0" height="60.0" fill="#D4EFDF" stroke="#27AE60" stroke-width="0.75" rx="5" ry="5" fill-opacity="0.9" />
+</g>
+<g id="arc_label">
+<text x="503.9" y="-15.0" font-size="13" font-family="DejaVu Sans, Liberation Sans, sans-serif" fill="#1E8449" text-anchor="middle" dominant-baseline="central">ARC Layer (n₁ = 1.38)</text>
+</g>
+<g id="glass_layer">
+<rect x="-320.0" y="35.0" width="220.0" height="90.0" fill="#EAECEE" stroke="#7F8C8D" stroke-width="0.75" rx="5" ry="5" fill-opacity="0.8" />
+</g>
+<g id="glass_label">
+<text x="523.4" y="80.0" font-size="13" font-family="DejaVu Sans, Liberation Sans, sans-serif" fill="#0072B2" text-anchor="middle" dominant-baseline="central">Substrate Glass (n₂ = 1.5)</text>
+</g>
+<g id="reflectance_plot" class="tf-plot">
+<rect class="tf-plot-frame" x="80" y="-145" width="310" height="190" fill="none" stroke="#000000" stroke-width="1" />
+<line x1="80" y1="45" x2="80" y2="50" stroke="#000000" stroke-width="1" />
+<text x="80" y="59" text-anchor="middle" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="9" fill="#000000">400</text>
+<line x1="157.5" y1="45" x2="157.5" y2="50" stroke="#000000" stroke-width="1" />
+<text x="157.5" y="59" text-anchor="middle" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="9" fill="#000000">500</text>
+<line x1="235" y1="45" x2="235" y2="50" stroke="#000000" stroke-width="1" />
+<text x="235" y="59" text-anchor="middle" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="9" fill="#000000">600</text>
+<line x1="312.5" y1="45" x2="312.5" y2="50" stroke="#000000" stroke-width="1" />
+<text x="312.5" y="59" text-anchor="middle" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="9" fill="#000000">700</text>
+<line x1="390" y1="45" x2="390" y2="50" stroke="#000000" stroke-width="1" />
+<text x="390" y="59" text-anchor="middle" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="9" fill="#000000">800</text>
+<line x1="80" y1="45" x2="75" y2="45" stroke="#000000" stroke-width="1" />
+<text x="72" y="48.15" text-anchor="end" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="9" fill="#000000">0</text>
+<line x1="80" y1="-2.5" x2="75" y2="-2.5" stroke="#000000" stroke-width="1" />
+<text x="72" y="0.6499999999999999" text-anchor="end" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="9" fill="#000000">0.025</text>
+<line x1="80" y1="-50" x2="75" y2="-50" stroke="#000000" stroke-width="1" />
+<text x="72" y="-46.85" text-anchor="end" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="9" fill="#000000">0.05</text>
+<line x1="80" y1="-97.50000000000003" x2="75" y2="-97.50000000000003" stroke="#000000" stroke-width="1" />
+<text x="72" y="-94.35000000000002" text-anchor="end" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="9" fill="#000000">0.075</text>
+<line x1="80" y1="-145" x2="75" y2="-145" stroke="#000000" stroke-width="1" />
+<text x="72" y="-141.85" text-anchor="end" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="9" fill="#000000">0.1</text>
+<text class="tf-axis-label-x" x="235" y="81" text-anchor="middle" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="7" fill="#000000">Wavelength λ (nm)</text>
+<text class="tf-axis-label-y" x="44" y="-50" text-anchor="middle" font-family="DejaVu Sans, Liberation Sans, sans-serif" font-size="7" fill="#000000" transform="rotate(-90, 44, -50)">Reflectance R</text>
+<path id="reflectance_plot-s0" class="tf-series" d="M 80 2.364833124762228 L 86.32653061224494 4.332105416365735 L 92.65306122448982 6.147404356527794 L 98.9795918367347 7.811387709147887 L 105.30612244897964 9.326614214879733 L 111.63265306122446 10.697099513300515 L 117.9591836734694 11.927946870023291 L 124.28571428571433 13.025042603256374 L 130.61224489795916 13.994806983164867 L 136.9387755102041 14.843992329377059 L 143.26530612244898 15.579520988394847 L 149.59183673469386 16.20835679061736 L 155.9183673469388 16.73740444110306 L 162.24489795918367 17.17343207615021 L 168.5714285714286 17.52301291444949 L 174.8979591836735 17.79248254740612 L 181.22448979591837 17.987908951959433 L 187.5510204081633 18.115072776454937 L 193.8775510204082 18.179455852402157 L 200.20408163265307 18.186236229151056 L 206.53061224489795 18.140288321418083 L 212.8571428571429 18.04618700762344 L 219.18367346938777 17.908214726109378 L 225.5102040816327 17.73037079188232 L 231.8367346938776 17.51638230337148 L 238.16326530612247 17.26971613106628 L 244.4897959183673 16.993591581496688 L 250.8163265306123 16.690993414071254 L 257.14285714285717 16.36468495756082 L 263.4693877551021 16.01722112988791 L 269.795918367347 15.650961211379311 L 276.12244897959187 15.26808125948289 L 282.44897959183675 14.870586083597424 L 288.7755102040817 14.460320723342807 L 295.1020408163265 14.038981393341786 L 301.42857142857144 13.608125873259425 L 307.7551020408164 13.169183334177486 L 314.0816326530612 12.723463601972455 L 320.40816326530614 12.272165865722037 L 326.7346938775511 11.81638684470338 L 333.0612244897959 11.357128431613809 L 339.38775510204084 10.89530483252799 L 345.7142857142858 10.431749226040694 L 352.0408163265306 9.967219965226413 L 358.36734693877554 9.502406346634594 L 364.6938775510205 9.037933970664099 L 371.0204081632653 8.57436971742841 L 377.34693877551024 8.112226361720161 L 383.6734693877552 7.651966849981264 L 390 7.194008261337814" fill="none" stroke="#0072B2" stroke-width="2" />
+</g>
+<g id="r1" class="tf-readout tf-verdict-false">
+<text x="220.0" y="142.72" font-size="14" font-family="DejaVu Sans, Liberation Sans, sans-serif" fill="#0072B2" class="tf-readout-text" text-anchor="middle" dominant-baseline="central">Reflectance R(λ): 0.0141</text>
+<text x="220.0" y="162.74" font-size="12.6" font-family="DejaVu Sans, Liberation Sans, sans-serif" fill="#888888" class="tf-readout-verdict" text-anchor="middle" dominant-baseline="central">above 1 %</text>
+</g>
+</svg>
+</figure>
+<script>
+function R(n0, n1, n2, d, lam) {
+  let cosc, delta, den, num, r01, r12;
+  r01 = ((n0 - n1) / (n0 + n1));
+  r12 = ((n1 - n2) / (n1 + n2));
+  delta = ((((2 * Math.PI) * n1) * d) / lam);
+  cosc = Math.cos((2 * delta));
+  num = ((Math.pow(r01, 2) + Math.pow(r12, 2)) + (((2 * r01) * r12) * cosc));
+  den = ((1 + (Math.pow(r01, 2) * Math.pow(r12, 2))) + (((2 * r01) * r12) * cosc));
+  return (num / den);
+}
+
+function sweep(n1, d, lam_min, lam_max, n) {
+  let i, step, wl, xs, ys;
+  xs = [];
+  ys = [];
+  step = ((lam_max - lam_min) / (n - 1));
+  for (i = 0; i < n; i += 1) {
+    wl = (lam_min + (i * step));
+    xs.push(wl);
+    ys.push(R(1.0, n1, 1.5, d, wl));
+  }
+  return [xs, ys];
+}
+
+function R_arc(n1, d, lam) {
+  return R(1.0, n1, 1.5, d, lam);
+}
+if (typeof globalThis !== 'undefined') globalThis.R = R;
+if (typeof globalThis !== 'undefined') globalThis.R_arc = R_arc;
+if (typeof globalThis !== 'undefined') globalThis.sweep = sweep;
+var __TF_BINDINGS = [{"id": "incident_label", "sel": null, "attr": "transform", "js": "`translate(${(((-280) + ((lam - 400) * 0.35))) - (-227.5)}, ${0})`", "kind": "value"}, {"id": "incident_label", "sel": "text", "attr": "textContent", "js": "\"Incident Light (\\u03bb = \" + (lam) + \" nm)\"", "kind": "text"}, {"id": "incident_ray", "sel": null, "attr": "d", "js": "`M ${((-280) + ((lam - 400) * 0.35))} ${(-140)} L ${((-280) + ((lam - 400) * 0.35))} ${(-65)}`", "kind": "value"}, {"id": "arc_label", "sel": "text", "attr": "textContent", "js": "\"ARC Layer (n\\u2081 = \" + (n1) + \")\"", "kind": "text"}, {"id": "reflectance_plot-s0", "sel": null, "attr": "d", "js": "__tf_series_d(sweep(n1, d, 400, 800, 50)[0], sweep(n1, d, 400, 800, 50)[1], 0.775, -230, -1900, 45)", "kind": "value"}, {"id": "r1", "sel": ".tf-readout-text", "attr": "textContent", "js": "\"Reflectance R(\\u03bb): \" + (__fmt(R_arc(n1, d, lam), \".4f\"))", "kind": "text"}, {"id": "r1", "sel": ".tf-readout-verdict", "attr": "textContent", "js": "Boolean((R_arc(n1, d, lam) < 0.01)) ? \"below 1 %\" : \"above 1 %\"", "kind": "text"}, {"id": "r1", "kind": "class", "js": "Boolean((R_arc(n1, d, lam) < 0.01))", "trueClass": "tf-verdict-true", "falseClass": "tf-verdict-false"}, {"id": "arc_layer", "kind": "visibility", "js": "Boolean((state === \"coated\"))"}, {"id": "arc_label", "kind": "visibility", "js": "Boolean((state === \"coated\"))"}];
+var __TF_PARAMS = {"n1": 1.38, "d": 100.0, "lam": 550.0, "state": "coated"};
+(function () {
+  function __fmt(x, spec) {
+    var v = Number(x);
+    var m = /^\.(\d+)f$/.exec(spec);
+    if (m) return v.toFixed(parseInt(m[1], 10));
+    m = /^\.(\d+)%$/.exec(spec);
+    if (m) return (v * 100).toFixed(parseInt(m[1], 10)) + "%";
+    m = /^\.(\d+)e$/.exec(spec);
+    if (m) {
+      var s = v.toExponential(parseInt(m[1], 10));
+      return s.replace(/e([+-])(\d)$/, function (_, sign, digits) {
+        return "e" + sign + (digits.length < 2 ? "0" + digits : digits);
+      });
+    }
+    if (spec === "d") return String(Math.round(v));
+    return String(v);
+  }
+  function __tf_sum(xs) {
+    var s = 0;
+    for (var i = 0; i < xs.length; i++) s += xs[i];
+    return s;
+  }
+  function __tf_d(pts) {
+    if (!pts || pts.length < 2) return "";
+    var s = "M" + pts[0][0] + "," + pts[0][1];
+    for (var i = 1; i < pts.length; i++) s += " L" + pts[i][0] + "," + pts[i][1];
+    return s;
+  }
+  function __tf_series_d(xs, ys, ax, bx, ay, by) {
+    if (!ys || ys.length === 0) return "";
+    var n = (xs && xs.length) ? Math.min(xs.length, ys.length) : ys.length;
+    var getX = function (i) { return (xs && xs.length) ? xs[i] : i; };
+    var s = "M " + (ax * getX(0) + bx) + " " + (ay * ys[0] + by);
+    for (var i = 1; i < n; i++) {
+      s += " L " + (ax * getX(i) + bx) + " " + (ay * ys[i] + by);
+    }
+    return s;
+  }
+
+  function valueOf(b, params) {
+    var paramNames = Object.keys(params);
+    var args = paramNames.concat(["__fmt", "__tf_sum", "__tf_d", "__tf_series_d"]);
+    if (!b._fn) {
+      b._fn = new Function(args.join(","), "return (" + b.js + ");");
+    }
+    var vals = [];
+    for (var i = 0; i < paramNames.length; i++) {
+      vals.push(params[paramNames[i]]);
+    }
+    vals.push(__fmt, __tf_sum, __tf_d, __tf_series_d);
+    return b._fn.apply(null, vals);
+  }
+
+  function applyBinding(b, params) {
+    if (typeof document === "undefined" || !document.getElementById) return;
+    var el = document.getElementById(b.id);
+    if (!el) return;
+    if (b.sel) {
+      el = el.querySelector(b.sel);
+      if (!el) return;
+    }
+    if (b.kind === "class" || b.kind === "classToggle") {
+      var cond = Boolean(valueOf(b, params));
+      if (cond) {
+        if (b.falseClass) el.classList.remove(b.falseClass);
+        if (b.trueClass) el.classList.add(b.trueClass);
+      } else {
+        if (b.trueClass) el.classList.remove(b.trueClass);
+        if (b.falseClass) el.classList.add(b.falseClass);
+      }
+      return;
+    }
+    if (b.kind === "visibility") {
+      var visible = Boolean(valueOf(b, params));
+      el.style.display = visible ? "" : "none";
+      return;
+    }
+    var v = valueOf(b, params);
+    if (b.attr === "textContent") {
+      el.textContent = v;
+      return;
+    }
+    el.setAttribute(b.attr, String(v));
+  }
+
+  function updateFig(fig) {
+    if (typeof document === "undefined" || !document.querySelectorAll) return;
+    var sel = fig.id ? '.tf-param[data-fig="' + fig.id + '"]' : '.tf-param';
+    var controls = document.querySelectorAll(sel);
+    for (var i = 0; i < controls.length; i++) {
+      var name = controls[i].getAttribute("data-name");
+      var v = controls[i].tagName === "SELECT" ? controls[i].value : parseFloat(controls[i].value);
+      fig.params[name] = v;
+      if (typeof globalThis !== "undefined") globalThis[name] = v;
+      var outSel = fig.id
+        ? 'output.tf-value[data-fig="' + fig.id + '"][data-name="' + name + '"]'
+        : 'output.tf-value[data-name="' + name + '"]';
+      var outs = document.querySelectorAll(outSel);
+      for (var j = 0; j < outs.length; j++) {
+        var unit = outs[j].getAttribute("data-unit");
+        outs[j].textContent = String(v) + (unit ? " " + unit : "");
+      }
+    }
+    for (var k = 0; k < fig.bindings.length; k++) {
+      var b = fig.bindings[k];
+      if (b.kind !== "class" && b.kind !== "classToggle" && b.kind !== "visibility") {
+        applyBinding(b, fig.params);
+      }
+    }
+    for (var k = 0; k < fig.bindings.length; k++) {
+      var b = fig.bindings[k];
+      if (b.kind === "class" || b.kind === "classToggle") {
+        applyBinding(b, fig.params);
+      }
+    }
+    for (var k = 0; k < fig.bindings.length; k++) {
+      var b = fig.bindings[k];
+      if (b.kind === "visibility") {
+        applyBinding(b, fig.params);
+      }
+    }
+  }
+
+  function register(figId, bindings, params) {
+    figId = figId || "";
+    var fig = {
+      id: figId,
+      bindings: bindings || [],
+      params: params || {},
+      update: function () { updateFig(fig); }
+    };
+    tf.figs[figId] = fig;
+    if (!tf.bindings || figId === "") {
+      tf.bindings = fig.bindings;
+      tf.params = fig.params;
+      tf.update = function () {
+        for (var f in tf.figs) {
+          if (tf.figs[f] && tf.figs[f].update) {
+            tf.figs[f].update();
+          }
+        }
+      };
+    }
+    for (var p in fig.params) {
+      if (typeof globalThis !== "undefined" && typeof globalThis[p] === "undefined") {
+        globalThis[p] = fig.params[p];
+      }
+    }
+    var sel = figId ? '.tf-param[data-fig="' + figId + '"]' : '.tf-param';
+    var controls = (typeof document !== "undefined" && document.querySelectorAll) ? document.querySelectorAll(sel) : [];
+    for (var n = 0; n < controls.length; n++) {
+      controls[n].addEventListener("input", fig.update);
+      controls[n].addEventListener("change", fig.update);
+    }
+    fig.update();
+    return fig;
+  }
+
+  var tf = (typeof window !== "undefined" && window.__tf) ? window.__tf : {};
+  tf.figs = tf.figs || {};
+  tf.fmt = __fmt;
+  tf.sum = __tf_sum;
+  tf.d = __tf_d;
+  tf.series_d = __tf_series_d;
+  tf.register = register;
+  if (typeof window !== "undefined") {
+    window.__tf = tf;
+  }
+  if (typeof globalThis !== "undefined") {
+    globalThis.__tf = tf;
+    globalThis.__tf_series_d = __tf_series_d;
+  }
+  if (typeof __TF_PARAMS !== "undefined" && typeof __TF_BINDINGS !== "undefined") {
+    register("", __TF_BINDINGS, __TF_PARAMS);
+  }
+})();
+__tf.register("", [{"id": "incident_label", "sel": null, "attr": "transform", "js": "`translate(${(((-280) + ((lam - 400) * 0.35))) - (-227.5)}, ${0})`", "kind": "value"}, {"id": "incident_label", "sel": "text", "attr": "textContent", "js": "\"Incident Light (\\u03bb = \" + (lam) + \" nm)\"", "kind": "text"}, {"id": "incident_ray", "sel": null, "attr": "d", "js": "`M ${((-280) + ((lam - 400) * 0.35))} ${(-140)} L ${((-280) + ((lam - 400) * 0.35))} ${(-65)}`", "kind": "value"}, {"id": "arc_label", "sel": "text", "attr": "textContent", "js": "\"ARC Layer (n\\u2081 = \" + (n1) + \")\"", "kind": "text"}, {"id": "reflectance_plot-s0", "sel": null, "attr": "d", "js": "__tf_series_d(sweep(n1, d, 400, 800, 50)[0], sweep(n1, d, 400, 800, 50)[1], 0.775, -230, -1900, 45)", "kind": "value"}, {"id": "r1", "sel": ".tf-readout-text", "attr": "textContent", "js": "\"Reflectance R(\\u03bb): \" + (__fmt(R_arc(n1, d, lam), \".4f\"))", "kind": "text"}, {"id": "r1", "sel": ".tf-readout-verdict", "attr": "textContent", "js": "Boolean((R_arc(n1, d, lam) < 0.01)) ? \"below 1 %\" : \"above 1 %\"", "kind": "text"}, {"id": "r1", "kind": "class", "js": "Boolean((R_arc(n1, d, lam) < 0.01))", "trueClass": "tf-verdict-true", "falseClass": "tf-verdict-false"}, {"id": "arc_layer", "kind": "visibility", "js": "Boolean((state === \"coated\"))"}, {"id": "arc_label", "kind": "visibility", "js": "Boolean((state === \"coated\"))"}], {"n1": 1.38, "d": 100.0, "lam": 550.0, "state": "coated"});
+</script>
+</body>
+</html>
