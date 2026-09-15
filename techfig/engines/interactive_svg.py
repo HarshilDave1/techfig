@@ -55,7 +55,7 @@ _SHAPE_SEL: Dict[str, Optional[str]] = {
     "circle": "circle", "ellipse": "ellipse",
     "diamond": "path", "triangle": "path",
     "polygon": "path", "pen": "path", "compound": "path",
-    "text": "text", "callout": "text",
+    "text": "text", "callout": "text", "readout": "text",
     "line": None, "arrow": None, "path": None,
 }
 
@@ -72,11 +72,12 @@ _TYPE_DEFAULTS: Dict[str, Dict[str, float]] = {
     "triangle": {"x": 0, "y": 0, "w": 80, "h": 70},
     "line": {"x1": 0, "y1": 0, "x2": 100, "y2": 0},
     "arrow": {"x1": 0, "y1": 0, "x2": 100, "y2": 0},
+    "readout": {"x": 0, "y": 0},
 }
 
 _COMMON_STYLE = {
     "color", "stroke_color", "fill_opacity", "stroke_opacity",
-    "stroke_dash", "stroke_width", "opacity", "rotation",
+    "stroke_dash", "stroke_width", "opacity", "rotation", "visible_when",
 }
 
 # Bindable fields per element type. Anything else raises ValueError.
@@ -89,7 +90,7 @@ _SUPPORTED: Dict[str, set] = {
     "text": _COMMON_STYLE | {"x", "y", "text", "font_size"},
     "textblock": _COMMON_STYLE | {"x", "y", "w", "h"},
     "callout": ({"stroke_dash", "stroke_opacity", "stroke_width", "opacity"})
-    | {"x", "y", "text", "font_size"},
+    | {"x", "y", "text", "font_size", "visible_when"},
     "line": (_COMMON_STYLE - {"rotation", "fill_opacity"})
     | {"x1", "y1", "x2", "y2"},
     "arrow": (_COMMON_STYLE - {"rotation", "fill_opacity"})
@@ -99,8 +100,9 @@ _SUPPORTED: Dict[str, set] = {
     "pen": _COMMON_STYLE | {"text"},
     "compound": _COMMON_STYLE | {"text"},
     "legend": _COMMON_STYLE | {"x", "y", "w", "h"},
-    "image": {"opacity"} | {"x", "y", "w", "h"},
-    "plot": {"series", "data"},
+    "image": {"opacity", "visible_when"} | {"x", "y", "w", "h"},
+    "plot": {"series", "data", "visible_when"},
+    "readout": _COMMON_STYLE | {"x", "y", "expr", "format", "label", "unit", "verdict", "font_size"},
 }
 
 # (field, svg attr, target) — target: "shape" (geometry child), "stroke"
@@ -797,26 +799,114 @@ def _entries_for_element(
     return entries
 
 
+def _readout_bindings(
+    el: Dict[str, Any],
+    cel: Dict[str, Any],
+    el_id: str,
+    model_funcs: Iterable[str] = (),
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    attr_entries: List[Dict[str, Any]] = []
+    class_entries: List[Dict[str, Any]] = []
+
+    # 1. Value text binding
+    expr_val = el.get("expr", "")
+    clean_expr = str(expr_val).strip()
+    if clean_expr.startswith("{{") and clean_expr.endswith("}}"):
+        clean_expr = clean_expr[2:-2].strip()
+    expr_js = expr_to_js(clean_expr, extra_funcs=model_funcs)
+
+    fmt = el.get("format")
+    if fmt:
+        val_js = f"__fmt({expr_js}, {json.dumps(fmt)})"
+    else:
+        val_js = f"String({expr_js})"
+
+    unit = el.get("unit")
+    if unit:
+        val_js = f"({val_js}) + {json.dumps(' ' + unit)}"
+
+    label = el.get("label")
+    if label:
+        text_js = f"{json.dumps(label + ': ')} + ({val_js})"
+    else:
+        text_js = val_js
+
+    attr_entries.append(_entry(el_id, ".tf-readout-text", "textContent", text_js, "text"))
+
+    # 2. Verdict text and class bindings
+    verdict = el.get("verdict")
+    if isinstance(verdict, dict):
+        v_expr = verdict.get("expr", "")
+        clean_v = str(v_expr).strip()
+        if clean_v.startswith("{{") and clean_v.endswith("}}"):
+            clean_v = clean_v[2:-2].strip()
+        v_js = expr_to_js(clean_v, extra_funcs=model_funcs)
+        true_text = verdict.get("true", "")
+        false_text = verdict.get("false", "")
+        verdict_text_js = f"Boolean({v_js}) ? {json.dumps(true_text)} : {json.dumps(false_text)}"
+        attr_entries.append(_entry(el_id, ".tf-readout-verdict", "textContent", verdict_text_js, "text"))
+        class_entries.append({
+            "id": el_id,
+            "kind": "class",
+            "js": f"Boolean({v_js})",
+            "trueClass": "tf-verdict-true",
+            "falseClass": "tf-verdict-false",
+        })
+
+    return attr_entries, class_entries
+
+
 def _build_bindings(
     spec: Dict[str, Any],
     concrete: Dict[str, Any],
     svg_root: ET.Element,
     model_funcs: Iterable[str] = (),
 ) -> List[Dict[str, Any]]:
-    entries: List[Dict[str, Any]] = []
+    attr_entries: List[Dict[str, Any]] = []
+    class_entries: List[Dict[str, Any]] = []
+    vis_entries: List[Dict[str, Any]] = []
+
     elements = spec.get("elements", [])
     concrete_elements = concrete.get("elements", [])
     for idx, el in enumerate(elements):
         el_type = el.get("type", "box")
         el_id = el.get("id", "")
         cel = concrete_elements[idx] if idx < len(concrete_elements) else {}
+
+        if "visible_when" in el:
+            vw = el["visible_when"]
+            clean_vw = str(vw).strip()
+            if clean_vw.startswith("{{") and clean_vw.endswith("}}"):
+                clean_vw = clean_vw[2:-2].strip()
+            vw_js = expr_to_js(clean_vw, extra_funcs=model_funcs)
+            vis_entries.append({
+                "id": el_id,
+                "kind": "visibility",
+                "js": f"Boolean({vw_js})",
+            })
+
         if el_type == "plot":
             if _is_bound_plot(el):
-                entries.extend(_plot_series_bindings(el, cel, el_id, model_funcs=model_funcs))
+                attr_entries.extend(_plot_series_bindings(el, cel, el_id, model_funcs=model_funcs))
             continue
-        bound: Dict[str, Tuple[str, str]] = {}
+
+        if el_type == "readout":
+            r_attr, r_class = _readout_bindings(el, cel, el_id, model_funcs=model_funcs)
+            attr_entries.extend(r_attr)
+            class_entries.extend(r_class)
+            bound: Dict[str, Tuple[str, str]] = {}
+            for field, value in el.items():
+                if field in ("type", "id", "expr", "format", "label", "unit", "verdict", "visible_when"):
+                    continue
+                if _contains_binding(value):
+                    bound[field] = _value_to_js(value, extra_funcs=model_funcs)
+            if bound:
+                attr_entries.extend(_entries_for_element(el, cel, el_id, el_type, bound, svg_root))
+            continue
+
+        bound = {}
         for field, value in el.items():
-            if field in ("type", "id"):
+            if field in ("type", "id", "visible_when"):
                 continue
             if _contains_binding(value):
                 bound[field] = _value_to_js(value, extra_funcs=model_funcs)
@@ -827,8 +917,23 @@ def _build_bindings(
                 f"interactive binding on {el_type}.points is not supported "
                 "(the rendered path involves smoothing/boolean geometry)"
             )
-        entries.extend(_entries_for_element(el, cel, el_id, el_type, bound, svg_root))
-    return entries
+        attr_entries.extend(_entries_for_element(el, cel, el_id, el_type, bound, svg_root))
+
+    connections = spec.get("connections", [])
+    for ci, conn in enumerate(connections):
+        if "visible_when" in conn:
+            conn_id = conn.get("id") or f"tf-conn-{ci}"
+            clean_vw = str(conn["visible_when"]).strip()
+            if clean_vw.startswith("{{") and clean_vw.endswith("}}"):
+                clean_vw = clean_vw[2:-2].strip()
+            vw_js = expr_to_js(clean_vw, extra_funcs=model_funcs)
+            vis_entries.append({
+                "id": conn_id,
+                "kind": "visibility",
+                "js": f"Boolean({vw_js})",
+            })
+
+    return attr_entries + class_entries + vis_entries
 
 
 # ---- runtime (vanilla JS, no deps) ----------------------------------------
@@ -891,6 +996,22 @@ _RUNTIME_JS = r"""(function () {
       el = el.querySelector(b.sel);
       if (!el) return;
     }
+    if (b.kind === "class" || b.kind === "classToggle") {
+      var cond = Boolean(valueOf(b));
+      if (cond) {
+        if (b.falseClass) el.classList.remove(b.falseClass);
+        if (b.trueClass) el.classList.add(b.trueClass);
+      } else {
+        if (b.trueClass) el.classList.remove(b.trueClass);
+        if (b.falseClass) el.classList.add(b.falseClass);
+      }
+      return;
+    }
+    if (b.kind === "visibility") {
+      var visible = Boolean(valueOf(b));
+      el.style.display = visible ? "" : "none";
+      return;
+    }
     var v = valueOf(b);
     if (b.attr === "textContent") {
       el.textContent = v;
@@ -899,10 +1020,10 @@ _RUNTIME_JS = r"""(function () {
     el.setAttribute(b.attr, String(v));
   }
   function update() {
-    var inputs = document.querySelectorAll("input.tf-param");
-    for (var i = 0; i < inputs.length; i++) {
-      var name = inputs[i].getAttribute("data-name");
-      var v = parseFloat(inputs[i].value);
+    var controls = document.querySelectorAll(".tf-param");
+    for (var i = 0; i < controls.length; i++) {
+      var name = controls[i].getAttribute("data-name");
+      var v = controls[i].tagName === "SELECT" ? controls[i].value : parseFloat(controls[i].value);
       __TF_PARAMS[name] = v;
       if (typeof globalThis !== "undefined") globalThis[name] = v;
       var outs = document.querySelectorAll('output.tf-value[data-name="' + name + '"]');
@@ -911,11 +1032,29 @@ _RUNTIME_JS = r"""(function () {
         outs[j].textContent = String(v) + (unit ? " " + unit : "");
       }
     }
-    for (var k = 0; k < __TF_BINDINGS.length; k++) applyBinding(__TF_BINDINGS[k]);
+    for (var k = 0; k < __TF_BINDINGS.length; k++) {
+      var b = __TF_BINDINGS[k];
+      if (b.kind !== "class" && b.kind !== "classToggle" && b.kind !== "visibility") {
+        applyBinding(b);
+      }
+    }
+    for (var k = 0; k < __TF_BINDINGS.length; k++) {
+      var b = __TF_BINDINGS[k];
+      if (b.kind === "class" || b.kind === "classToggle") {
+        applyBinding(b);
+      }
+    }
+    for (var k = 0; k < __TF_BINDINGS.length; k++) {
+      var b = __TF_BINDINGS[k];
+      if (b.kind === "visibility") {
+        applyBinding(b);
+      }
+    }
   }
-  var inputs = document.querySelectorAll("input.tf-param");
-  for (var n = 0; n < inputs.length; n++) {
-    inputs[n].addEventListener("input", update);
+  var controls = document.querySelectorAll(".tf-param");
+  for (var n = 0; n < controls.length; n++) {
+    controls[n].addEventListener("input", update);
+    controls[n].addEventListener("change", update);
   }
   for (var p in __TF_PARAMS) {
     if (typeof globalThis !== "undefined" && typeof globalThis[p] === "undefined") {
@@ -942,6 +1081,20 @@ def _fmt_num(v: float) -> str:
 
 def _control_html(p: Dict[str, Any]) -> str:
     name = p["name"]
+    if p.get("kind") == "state":
+        options_html = []
+        for opt in p.get("options", []):
+            sel = " selected" if opt == p["value"] else ""
+            options_html.append(f'      <option value="{opt}"{sel}>{opt}</option>')
+        opts_str = "\n".join(options_html)
+        return (
+            f'  <div class="tf-control">\n'
+            f'    <label for="tf-p-{name}">{p["label"]}</label>\n'
+            f'    <select class="tf-param" data-name="{name}" id="tf-p-{name}">\n'
+            f'{opts_str}\n'
+            f'    </select>\n'
+            f'  </div>'
+        )
     val = _fmt_num(p["value"])
     out_text = f"{val} {p['unit']}".rstrip()
     data_unit = f' data-unit="{p["unit"]}"' if p["unit"] else ""
@@ -966,7 +1119,9 @@ def _css_vars(spec: Dict[str, Any]) -> str:
         f'--tf-primary: {colors.get("primary", "#0072B2")};\n'
         f'--tf-bg: {colors.get("background", "#FFFFFF")};\n'
         f'--tf-fg: {colors.get("text", "#000000")};\n'
-        f'--tf-accent: {colors.get("accent", "#009E73")};'
+        f'--tf-accent: {colors.get("accent", "#009E73")};\n'
+        f'--tf-muted: {colors.get("muted", "#888888")};\n'
+        f'--tf-gray: #888888;'
     )
 
 
@@ -1018,27 +1173,51 @@ def create_interactive_svg(
         seen_names.add(name)
         if not _JS_NAME_RE.match(name):
             raise ValueError(f"Param name '{name}' is not a valid JS identifier")
-        for key in ("min", "max", "step", "value"):
-            if key not in p:
-                raise ValueError(f"Param '{name}' is missing '{key}'")
-        controls.append({
-            "name": name,
-            "min": float(p["min"]),
-            "max": float(p["max"]),
-            "step": float(p["step"]),
-            "value": float(p["value"]),
-            "label": str(p.get("label") or name),
-            "unit": str(p.get("unit") or ""),
-        })
+        kind = p.get("kind", "range")
+        if kind not in ("range", "state"):
+            raise ValueError(f"Unknown param kind: '{kind}'")
+        if kind == "state":
+            options = p.get("options")
+            if not options or not isinstance(options, list):
+                raise ValueError(f"State param '{name}' requires non-empty 'options' list")
+            val = str(p.get("value", options[0]))
+            controls.append({
+                "name": name,
+                "kind": "state",
+                "options": [str(opt) for opt in options],
+                "value": val,
+                "label": str(p.get("label") or name),
+                "unit": "",
+            })
+        else:
+            for key in ("min", "max", "step", "value"):
+                if key not in p:
+                    raise ValueError(f"Param '{name}' is missing '{key}'")
+            controls.append({
+                "name": name,
+                "kind": "range",
+                "min": float(p["min"]),
+                "max": float(p["max"]),
+                "step": float(p["step"]),
+                "value": float(p["value"]),
+                "label": str(p.get("label") or name),
+                "unit": str(p.get("unit") or ""),
+            })
 
-    # 1. Ensure every bound element carries an id BEFORE rendering.
+    # 1. Ensure every bound element and connection carries an id BEFORE rendering.
     elements = spec.get("elements", [])
+    connections = spec.get("connections", [])
     used_ids = {el.get("id") for el in elements if el.get("id")}
+    used_ids.update(conn.get("id") for conn in connections if conn.get("id"))
     for idx, el in enumerate(elements):
-        has_binding = any(
-            _contains_binding(v)
-            for f, v in el.items()
-            if f not in ("type", "id")
+        has_binding = (
+            el.get("type") == "readout"
+            or "visible_when" in el
+            or any(
+                _contains_binding(v)
+                for f, v in el.items()
+                if f not in ("type", "id")
+            )
         )
         if not has_binding or el.get("id"):
             continue
@@ -1047,6 +1226,14 @@ def create_interactive_svg(
             gen += "x"
         el["id"] = gen
         used_ids.add(gen)
+
+    for ci, conn in enumerate(connections):
+        if "visible_when" in conn and not conn.get("id"):
+            conn_id = f"tf-conn-{ci}"
+            while conn_id in used_ids:
+                conn_id += "x"
+            conn["id"] = conn_id
+            used_ids.add(conn_id)
 
     # 2. Render the concrete SVG at default params via the existing pipeline.
     render_spec = copy.deepcopy(spec)
@@ -1064,7 +1251,7 @@ def create_interactive_svg(
 
     tmpdir = tempfile.mkdtemp(prefix="tf_interactive_")
     svg_file = str(Path(tmpdir) / "static.svg")
-    render_from_spec(render_spec, svg_file, base_dir=base_dir)
+    render_from_spec(render_spec, svg_file, base_dir=base_dir, skip_hidden=False)
     svg_text = Path(svg_file).read_text(encoding="utf-8")
 
     # 3. Resolve the concrete spec (same defaults) for geometry constants.
@@ -1104,7 +1291,6 @@ def create_interactive_svg(
 :root {{
 {_css_vars(spec)}
 }}
-}}
 body {{
   font-family: Arial, Helvetica, sans-serif;
   background: var(--tf-bg);
@@ -1126,9 +1312,21 @@ body {{
 .tf-control {{ display: flex; align-items: center; gap: 10px; }}
 .tf-control label {{ font-weight: 600; font-size: 14px; }}
 .tf-control input[type="range"] {{ accent-color: var(--tf-primary); width: 150px; }}
+.tf-control select.tf-param {{
+  background: var(--tf-bg);
+  color: var(--tf-fg);
+  border: 1px solid var(--tf-primary);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+}}
 .tf-value {{ min-width: 4.5em; font-variant-numeric: tabular-nums; font-size: 14px; }}
 figure {{ margin: 0; }}
 figure svg {{ max-width: 100%; height: auto; display: block; }}
+.tf-verdict-true {{ fill: var(--tf-accent, #009E73); color: var(--tf-accent, #009E73); }}
+.tf-verdict-false {{ fill: var(--tf-muted, #888888); color: var(--tf-muted, #888888); }}
+.tf-verdict-true .tf-readout-verdict {{ fill: var(--tf-accent, #009E73); }}
+.tf-verdict-false .tf-readout-verdict {{ fill: var(--tf-muted, #888888); }}
 </style>
 </head>
 <body>

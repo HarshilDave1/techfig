@@ -22,6 +22,7 @@ from pathlib import Path
 from techfig.utils.svg_builder import SVGBuilder
 from techfig.components import get_registry
 from techfig.components.standard import render_schemdraw_component
+from techfig.engines.params import _fmt, safe_eval
 
 # Shapes the engine can render as nodes
 SUPPORTED_SHAPES = ("box", "circle", "diamond", "ellipse", "triangle")
@@ -172,6 +173,25 @@ def _resolve_text_overlaps(elements: List[Dict[str, Any]], default_font_size: fl
     return result
 
 
+def _is_visible(item: Dict[str, Any]) -> bool:
+    if "visible_when" not in item:
+        return True
+    vw = item["visible_when"]
+    if isinstance(vw, bool):
+        return vw
+    if isinstance(vw, (int, float)):
+        return bool(vw)
+    if isinstance(vw, str):
+        s = vw.strip()
+        if s.startswith("{{") and s.endswith("}}"):
+            s = s[2:-2].strip()
+        try:
+            return bool(safe_eval(s, {}))
+        except Exception:
+            return bool(s)
+    return bool(vw)
+
+
 def create_diagram(
     elements: List[Dict[str, Any]],
     connections: List[Dict[str, Any]],
@@ -179,6 +199,7 @@ def create_diagram(
     width: int = 1200,
     height: int = 800,
     style_config: Optional[Dict[str, Any]] = None,
+    skip_hidden: bool = True,
 ) -> str:
     """Generate a diagram from element and connection definitions.
 
@@ -208,6 +229,8 @@ def create_diagram(
             - ``plot``: ``x``, ``y``, ``w``, ``h`` + ``chart`` dict
               (``type``, ``data``, and optional ``x_col``/``y_col``/``hue_col``/
               ``title``/``xlabel``/``ylabel``/``style``/``style_overrides``)
+            - ``readout``: ``x``, ``y``, ``expr`` + optional ``format``, ``label``,
+              ``unit``, ``verdict``
             All can include: ``color``, ``stroke_dash``, ``fill_opacity``, ``rotation``
         connections: List of connection dicts with ``from``, ``to``, and optionally
             ``label``, ``route`` (straight|orthogonal), ``color``, ``style`` (arrow|line),
@@ -216,10 +239,15 @@ def create_diagram(
         width: Canvas width in pixels.
         height: Canvas height in pixels.
         style_config: Optional style dict.
+        skip_hidden: If True, skip elements/connections where visible_when is falsy.
 
     Returns:
         Absolute path to the generated file.
     """
+    if skip_hidden:
+        elements = [el for el in elements if _is_visible(el)]
+        connections = [c for c in connections if _is_visible(c)]
+
     builder = SVGBuilder(width=width, height=height, style_config=style_config)
 
     # 0. Resolve text label overlaps before rendering
@@ -241,6 +269,8 @@ def create_diagram(
                 w = h = float(el.get("rx", 50)) * 2, float(el.get("ry", 30)) * 2
             elif el.get("type") == "image":
                 w, h = float(el.get("w", 160)), float(el.get("h", 120))
+            elif el.get("type") == "readout":
+                w, h = 100, 30
             else:
                 w, h = 0, 0
             _el_pos[eid] = (x, y, w, h)
@@ -552,6 +582,65 @@ def create_diagram(
                 **style_kw,
             )
 
+        elif el_type == "readout":
+            val = el.get("value")
+            if val is None and "expr" in el:
+                expr_str = str(el["expr"]).strip()
+                if expr_str.startswith("{{") and expr_str.endswith("}}"):
+                    expr_str = expr_str[2:-2].strip()
+                try:
+                    val = safe_eval(expr_str, {})
+                except Exception:
+                    val = el["expr"]
+
+            fmt = el.get("format")
+            if fmt and isinstance(val, (int, float)):
+                formatted_val = _fmt(val, fmt)
+            else:
+                formatted_val = str(val) if val is not None else ""
+
+            unit = el.get("unit")
+            if unit:
+                val_with_unit = f"{formatted_val} {unit}".rstrip()
+            else:
+                val_with_unit = formatted_val
+
+            label = el.get("label")
+            if label:
+                main_text = f"{label}: {val_with_unit}"
+            else:
+                main_text = val_with_unit
+
+            verdict_spec = el.get("verdict")
+            verdict_text = None
+            verdict_class = None
+            if isinstance(verdict_spec, dict):
+                v_val = verdict_spec.get("value")
+                if v_val is None and "expr" in verdict_spec:
+                    ve_str = str(verdict_spec["expr"]).strip()
+                    if ve_str.startswith("{{") and ve_str.endswith("}}"):
+                        ve_str = ve_str[2:-2].strip()
+                    try:
+                        v_val = bool(safe_eval(ve_str, {}))
+                    except Exception:
+                        v_val = False
+                else:
+                    v_val = bool(v_val)
+
+                verdict_text = verdict_spec.get("true" if v_val else "false", "")
+                verdict_class = "tf-verdict-true" if v_val else "tf-verdict-false"
+
+            builder.add_readout(
+                float(el.get("x", 0)), float(el.get("y", 0)),
+                text=main_text,
+                verdict_text=verdict_text,
+                verdict_class=verdict_class,
+                element_id=el_id,
+                font_size=el.get("font_size"),
+                color=color,
+                **style_kw,
+            )
+
         else:
             # Try component registry for custom/lab-folder components
             registry = get_registry()
@@ -575,7 +664,7 @@ def create_diagram(
                 raise ValueError(
                     f"Unknown element type: '{el_type}'. "
                     f"Supported: {', '.join(SUPPORTED_SHAPES)}, text, textblock, line, arrow, path, "
-                    f"polygon, pen, compound, image, callout, legend, plot, or any registered component."
+                    f"polygon, pen, compound, image, callout, legend, plot, readout, or any registered component."
                 )
 
 
@@ -590,6 +679,10 @@ def create_diagram(
         conn_kw: Dict[str, Any] = {}
         if "stroke_dash" in conn:
             conn_kw["stroke_dash"] = conn["stroke_dash"]
+        if conn.get("id"):
+            conn_kw["element_id"] = conn["id"]
+        elif "visible_when" in conn:
+            conn_kw["element_id"] = f"tf-conn-{ci}"
 
         # Apply adjusted label y-offset from overlap resolver
         label = conn.get("label", "")

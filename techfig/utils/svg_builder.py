@@ -720,6 +720,71 @@ class SVGBuilder:
             approx_w = _text_width(text, self._font_family(), size)
             self._elements[element_id] = (x, y, approx_w, size)
 
+    def add_readout(
+        self,
+        x: float, y: float,
+        text: str,
+        verdict_text: Optional[str] = None,
+        verdict_class: Optional[str] = None,
+        element_id: str = "",
+        font_size: Optional[float] = None,
+        color: str = "text",
+        **kwargs,
+    ) -> None:
+        """Add a readout element (value line + optional verdict line)."""
+        rotation = kwargs.pop("rotation", 0)
+        _ = self._extract_style_kwargs(kwargs, default_fill_opacity=-1)
+        fill = self._resolve_color(color)
+        size = font_size or self._font_size()
+
+        classes = ["tf-readout"]
+        if verdict_class:
+            classes.append(verdict_class)
+        class_str = " ".join(classes)
+
+        group = draw.Group(id=element_id, class_=class_str) if element_id else draw.Group(class_=class_str)
+
+        line_dy = size * 1.3
+        if verdict_text is not None:
+            y1 = y - line_dy * 0.4
+            y2 = y + line_dy * 0.7
+            t1 = draw.Text(
+                text, size,
+                x=x, y=y1, center=True,
+                font_family=self._font_family(),
+                fill=fill,
+                class_="tf-readout-text",
+                **kwargs,
+            )
+            group.append(t1)
+            verdict_size = size * 0.9
+            v_color = "#009E73" if verdict_class == "tf-verdict-true" else ("#888888" if verdict_class == "tf-verdict-false" else fill)
+            t2 = draw.Text(
+                verdict_text, verdict_size,
+                x=x, y=y2, center=True,
+                font_family=self._font_family(),
+                fill=v_color,
+                class_="tf-readout-verdict",
+            )
+            group.append(t2)
+        else:
+            t1 = draw.Text(
+                text, size,
+                x=x, y=y, center=True,
+                font_family=self._font_family(),
+                fill=fill,
+                class_="tf-readout-text",
+                **kwargs,
+            )
+            group.append(t1)
+
+        _apply_rotation(group, x, y, rotation)
+        self.drawing.append(group)
+        if element_id:
+            approx_w = _text_width(text, self._font_family(), size)
+            approx_h = line_dy * 2 if verdict_text is not None else size
+            self._elements[element_id] = (x, y, approx_w, approx_h)
+
     def add_textblock(
         self,
         x: float, y: float, w: float, h: float,
@@ -1562,25 +1627,42 @@ class SVGBuilder:
             **kwargs,
         )
 
+        element_id = kwargs.pop("element_id", "")
+
         if route == "straight":
             path.M(*start).L(*end)
         elif route == "orthogonal":
             mid_x = (start[0] + end[0]) / 2
             path.M(*start).L(mid_x, start[1]).L(mid_x, end[1]).L(*end)
 
-        self.drawing.append(path)
-
-        if text:
-            mid_x = (start[0] + end[0]) / 2
-            mid_y = (start[1] + end[1]) / 2
-            label_y = label_y_override if label_y_override is not None else mid_y - 10
-            self.drawing.append(draw.Text(
-                text, self._font_size() * 0.8,
-                x=mid_x, y=label_y,
-                center=True,
-                font_family=self._font_family(),
-                fill=self._text_color(),
-            ))
+        if element_id:
+            group = draw.Group(id=element_id)
+            group.append(path)
+            if text:
+                mid_x = (start[0] + end[0]) / 2
+                mid_y = (start[1] + end[1]) / 2
+                label_y = label_y_override if label_y_override is not None else mid_y - 10
+                group.append(draw.Text(
+                    text, self._font_size() * 0.8,
+                    x=mid_x, y=label_y,
+                    center=True,
+                    font_family=self._font_family(),
+                    fill=self._text_color(),
+                ))
+            self.drawing.append(group)
+        else:
+            self.drawing.append(path)
+            if text:
+                mid_x = (start[0] + end[0]) / 2
+                mid_y = (start[1] + end[1]) / 2
+                label_y = label_y_override if label_y_override is not None else mid_y - 10
+                self.drawing.append(draw.Text(
+                    text, self._font_size() * 0.8,
+                    x=mid_x, y=label_y,
+                    center=True,
+                    font_family=self._font_family(),
+                    fill=self._text_color(),
+                ))
 
     def add_connection(
         self,
@@ -1602,6 +1684,7 @@ class SVGBuilder:
         style_attrs, kwargs = self._extract_style_kwargs(kwargs)
         label_y_override = kwargs.pop("label_y_override", None)
         color = self._stroke_color(stroke_color)
+        element_id = kwargs.pop("element_id", "")
 
         path = draw.Path(
             stroke=color,
@@ -1617,19 +1700,34 @@ class SVGBuilder:
             mid_x = (start[0] + end[0]) / 2
             path.M(*start).L(mid_x, start[1]).L(mid_x, end[1]).L(*end)
 
-        self.drawing.append(path)
-
-        if text:
-            mid_x = (start[0] + end[0]) / 2
-            mid_y = (start[1] + end[1]) / 2
-            label_y = label_y_override if label_y_override is not None else mid_y - 10
-            self.drawing.append(draw.Text(
-                text, self._font_size() * 0.8,
-                x=mid_x, y=label_y,
-                center=True,
-                font_family=self._font_family(),
-                fill=self._text_color(),
-            ))
+        if element_id:
+            group = draw.Group(id=element_id)
+            group.append(path)
+            if text:
+                mid_x = (start[0] + end[0]) / 2
+                mid_y = (start[1] + end[1]) / 2
+                label_y = label_y_override if label_y_override is not None else mid_y - 10
+                group.append(draw.Text(
+                    text, self._font_size() * 0.8,
+                    x=mid_x, y=label_y,
+                    center=True,
+                    font_family=self._font_family(),
+                    fill=self._text_color(),
+                ))
+            self.drawing.append(group)
+        else:
+            self.drawing.append(path)
+            if text:
+                mid_x = (start[0] + end[0]) / 2
+                mid_y = (start[1] + end[1]) / 2
+                label_y = label_y_override if label_y_override is not None else mid_y - 10
+                self.drawing.append(draw.Text(
+                    text, self._font_size() * 0.8,
+                    x=mid_x, y=label_y,
+                    center=True,
+                    font_family=self._font_family(),
+                    fill=self._text_color(),
+                ))
 
     # --- output ---------------------------------------------------------
 

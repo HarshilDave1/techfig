@@ -318,6 +318,41 @@ def _resolve_value(value: Any, env: Dict[str, Any], path: List[str | int], bindi
         resolved: Dict[str, Any] = {}
         for k, v in value.items():
             resolved[k] = _resolve_value(v, env, path + [k], bindings)
+        if resolved.get("type") == "readout":
+            expr_val = resolved.get("expr")
+            if expr_val is not None:
+                if isinstance(expr_val, str):
+                    s = expr_val.strip()
+                    if s.startswith("{{") and s.endswith("}}"):
+                        s = s[2:-2].strip()
+                    try:
+                        resolved["value"] = safe_eval(s, env)
+                    except Exception:
+                        resolved["value"] = expr_val
+                else:
+                    resolved["value"] = expr_val
+            verdict = resolved.get("verdict")
+            if isinstance(verdict, dict):
+                v_expr = verdict.get("expr")
+                if isinstance(v_expr, str):
+                    s = v_expr.strip()
+                    if s.startswith("{{") and s.endswith("}}"):
+                        s = s[2:-2].strip()
+                    try:
+                        v_bool = bool(safe_eval(s, env))
+                    except Exception:
+                        v_bool = False
+                    verdict["value"] = v_bool
+        if "visible_when" in resolved:
+            vw = resolved["visible_when"]
+            if isinstance(vw, str):
+                s = vw.strip()
+                if s.startswith("{{") and s.endswith("}}"):
+                    s = s[2:-2].strip()
+                try:
+                    resolved["visible_when"] = bool(safe_eval(s, env))
+                except Exception:
+                    pass
         return resolved
 
     if isinstance(value, list):
@@ -432,7 +467,17 @@ def resolve_spec(
         name = p.get("name")
         if not name:
             raise ValueError("Each param must have a 'name'")
-        env[name] = param_values.get(name, p.get("value")) if param_values else p.get("value")
+        kind = p.get("kind", "range")
+        if kind not in ("range", "state"):
+            raise ValueError(f"Unknown param kind: '{kind}'")
+        if kind == "state":
+            options = p.get("options")
+            if not options or not isinstance(options, list):
+                raise ValueError(f"State param '{name}' requires non-empty 'options' list")
+            default_val = p.get("value", options[0])
+            env[name] = param_values.get(name, default_val) if param_values else default_val
+        else:
+            env[name] = param_values.get(name, p.get("value")) if param_values else p.get("value")
 
     model_fns = load_model(spec, base_dir)
     collisions = sorted(set(env) & set(model_fns))

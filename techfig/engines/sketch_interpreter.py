@@ -62,7 +62,7 @@ DIAGRAM_SCHEMA: Dict[str, Any] = {
                 "properties": {
                     "type": {
                         "type": "string",
-                        "enum": ["box", "circle", "diamond", "ellipse", "triangle", "text", "textblock", "line", "arrow", "path", "polygon", "pen", "compound", "image", "callout", "legend", "plot"],
+                        "enum": ["box", "circle", "diamond", "ellipse", "triangle", "text", "textblock", "line", "arrow", "path", "polygon", "pen", "compound", "image", "callout", "legend", "plot", "readout"],
                     },
                     "id": {"type": "string", "description": "Unique ID for connections"},
                     "text": {"type": "string"},
@@ -134,6 +134,20 @@ DIAGRAM_SCHEMA: Dict[str, Any] = {
                     "ylim": {"type": "array", "description": "Plot y-axis limits [min, max]"},
                     "xlabel": {"type": "string", "description": "Plot x-axis label"},
                     "ylabel": {"type": "string", "description": "Plot y-axis label"},
+                    "expr": {"type": "string", "description": "Readout expression to evaluate"},
+                    "format": {"type": "string", "description": "Format string specifier (e.g. .3f)"},
+                    "unit": {"type": "string", "description": "Unit string to display after value"},
+                    "verdict": {
+                        "type": "object",
+                        "description": "Verdict specification for readout",
+                        "properties": {
+                            "expr": {"type": "string"},
+                            "true": {"type": "string"},
+                            "false": {"type": "string"},
+                        },
+                        "required": ["expr", "true", "false"],
+                    },
+                    "visible_when": {"type": "string", "description": "Conditional visibility expression"},
                 },
                 "required": ["type"],
             },
@@ -151,6 +165,7 @@ DIAGRAM_SCHEMA: Dict[str, Any] = {
                     "route": {"type": "string", "enum": ["straight", "orthogonal"]},
                     "color": {"type": "string"},
                     "stroke_dash": {"type": "string"},
+                    "visible_when": {"type": "string", "description": "Conditional visibility expression"},
                 },
                 "required": ["from", "to"],
             },
@@ -162,14 +177,19 @@ DIAGRAM_SCHEMA: Dict[str, Any] = {
                 "type": "object",
                 "properties": {
                     "name": {"type": "string"},
+                    "kind": {"type": "string", "enum": ["range", "state"]},
                     "min": {"type": "number"},
                     "max": {"type": "number"},
                     "step": {"type": "number"},
+                    "options": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
                     "value": {},
                     "label": {"type": "string"},
                     "unit": {"type": "string"},
                 },
-                "required": ["name", "min", "max", "step", "value"],
+                "required": ["name"],
             },
         },
         "model": {
@@ -214,6 +234,7 @@ and output a JSON specification that recreates it using clean geometric primitiv
 | image | x, y | w, h, src, prompt, cache_dir, model, text, id | Raster panel *inside* a vector diagram. `src` embeds a local png/jpg/webp/svg as a data URI. `prompt` generates a hard figure (3D model, micrograph) via litellm and embeds the result. Always keep labels/arrows as vector elements — do not ask the image model to paint text. Prefer vectors (box/pen/polygon/compound) unless the subject cannot be drawn geometrically. |
 | callout | x, y, text | anchor_x, anchor_y (or anchor=element id), id, color, font_size, stroke_dash, rotation | Anchored label with a leader line from the anchor point to the label, plus a small anchor dot. Use to annotate a specific point or element. If `anchor` is an element id, the leader attaches to that element's boundary; if `anchor_x`/`anchor_y` are given they pin the leader to that coordinate. |
 | legend | x, y | w, h, id, title, color, entries, swatch_shape, stroke_dash, fill_opacity, rotation | Bordered panel with swatch+label rows. `entries` is a list of {label, color, swatch_shape?}. `swatch_shape` defaults to "rect" (or "circle"). Good for color keys |
+| readout | x, y, expr | id, format, label, unit, verdict, visible_when | Readout of an expression value with optional verdict label |
 
 ## Connections (arrows and lines between elements)
 
@@ -411,6 +432,11 @@ def validate_spec(spec: Dict[str, Any]) -> List[str]:
         if el_type == "plot":
             if not el.get("chart") and not el.get("series") and not el.get("data"):
                 issues.append(f"element {idx}: plot needs chart, series, or data")
+        if el_type == "readout":
+            if "x" not in el or "y" not in el:
+                issues.append(f"element {idx}: missing x or y")
+            if "expr" not in el:
+                issues.append(f"element {idx}: missing expr")
 
     for idx, conn in enumerate(spec.get("connections", []) or []):
         if not isinstance(conn, dict):
@@ -424,6 +450,26 @@ def validate_spec(spec: Dict[str, Any]) -> List[str]:
         if from_id not in known_ids or to_id not in known_ids:
             issues.append(f"connection {idx}: unknown id reference")
 
+    for idx, p in enumerate(spec.get("params", []) or []):
+        if not isinstance(p, dict):
+            issues.append(f"param {idx}: must be an object")
+            continue
+        name = p.get("name")
+        if not name:
+            issues.append(f"param {idx}: missing name")
+        kind = p.get("kind", "range")
+        if kind not in ("range", "state"):
+            issues.append(f"param {idx}: unknown kind '{kind}'")
+        elif kind == "range":
+            for key in ("min", "max", "step"):
+                if key not in p:
+                    issues.append(f"param {idx}: missing {key}")
+            if "value" not in p:
+                issues.append(f"param {idx}: missing value")
+        elif kind == "state":
+            if "options" not in p or not isinstance(p["options"], list) or not p["options"]:
+                issues.append(f"param {idx}: state param needs options list")
+
     return issues
 
 
@@ -432,6 +478,7 @@ def render_from_spec(
     output_path: str,
     style_config: Dict[str, Any] | None = None,
     base_dir: Optional[str] = None,
+    skip_hidden: bool = True,
 ) -> str:
     """Render a diagram from a validated JSON spec.
 
@@ -472,6 +519,7 @@ def render_from_spec(
         width=width,
         height=height,
         style_config=merged_style or None,
+        skip_hidden=skip_hidden,
     )
 
 
