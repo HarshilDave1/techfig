@@ -100,7 +100,7 @@ _SUPPORTED: Dict[str, set] = {
     "compound": _COMMON_STYLE | {"text"},
     "legend": _COMMON_STYLE | {"x", "y", "w", "h"},
     "image": {"opacity"} | {"x", "y", "w", "h"},
-    "plot": set(),
+    "plot": {"series", "data"},
 }
 
 # (field, svg attr, target) — target: "shape" (geometry child), "stroke"
@@ -151,11 +151,363 @@ def _num(v: float) -> str:
     return "(" + _numval(v) + ")"
 
 
+def linear_scale(
+    domain: Tuple[float, float] | List[float],
+    range_: Tuple[float, float] | List[float],
+) -> Tuple[float, float]:
+    """Compute linear mapping constants (a, b) such that screen = a * val + b.
+
+    Args:
+        domain: (d0, d1) data coordinate domain.
+        range_: (r0, r1) screen/SVG coordinate range.
+
+    Returns:
+        (a, b) scale slope and offset.
+    """
+    d0, d1 = float(domain[0]), float(domain[1])
+    r0, r1 = float(range_[0]), float(range_[1])
+    if d1 == d0:
+        return 0.0, r0
+    a = (r1 - r0) / (d1 - d0)
+    b = r0 - a * d0
+    return a, b
+
+
+def _fmt_coord(v: float) -> str:
+    f = float(v)
+    if f.is_integer():
+        return str(int(f))
+    return repr(f)
+
+
+def compute_series_d(
+    xs: Optional[List[float]],
+    ys: List[float],
+    ax: float,
+    bx: float,
+    ay: float,
+    by: float,
+) -> str:
+    """Compute SVG path d string from coordinates and scale constants."""
+    if not ys:
+        return ""
+    n = min(len(xs), len(ys)) if (xs is not None and len(xs) > 0) else len(ys)
+    pts = []
+    for i in range(n):
+        x_val = xs[i] if (xs is not None and len(xs) > 0) else i
+        y_val = ys[i]
+        sx = ax * x_val + bx
+        sy = ay * y_val + by
+        pts.append(f"{_fmt_coord(sx)} {_fmt_coord(sy)}")
+    return "M " + " L ".join(pts)
+
+
+def _format_tick(v: float) -> str:
+    if abs(v) < 1e-12:
+        return "0"
+    if float(v).is_integer():
+        return str(int(v))
+    return f"{v:.4g}"
+
+
+def _get_plot_series(el: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Extract list of series dicts from a plot element."""
+    series = el.get("series")
+    if series is None:
+        series = el.get("data")
+    if series is None and isinstance(el.get("chart"), dict):
+        series = el["chart"].get("series") or el["chart"].get("data")
+    if isinstance(series, dict):
+        return [series]
+    if isinstance(series, list):
+        return [s for s in series if isinstance(s, dict)]
+    return []
+
+
+def _is_bound_plot(el: Dict[str, Any]) -> bool:
+    """Return True if el is a plot element with bound series/data."""
+    if el.get("type") != "plot":
+        return False
+    series_list = _get_plot_series(el)
+    if not series_list:
+        return False
+    for s in series_list:
+        if not isinstance(s, dict):
+            continue
+        if _contains_binding(s.get("x")) or _contains_binding(s.get("y")):
+            return True
+    return False
+
+
+def _compute_plot_limits(
+    el: Dict[str, Any],
+    cel: Dict[str, Any],
+) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+    """Determine frozen xlim and ylim for the plot element.
+
+    If present in el (or cel), use them. Otherwise compute at default params with
+    10% padding.
+    """
+    xlim_spec = el.get("xlim") or cel.get("xlim")
+    ylim_spec = el.get("ylim") or cel.get("ylim")
+
+    series_list = _get_plot_series(cel)
+    all_xs: List[float] = []
+    all_ys: List[float] = []
+    for s in series_list:
+        xs = s.get("x")
+        ys = s.get("y")
+        if isinstance(ys, list) and ys:
+            all_ys.extend(float(v) for v in ys if isinstance(v, (int, float)))
+            if isinstance(xs, list) and xs:
+                all_xs.extend(float(v) for v in xs if isinstance(v, (int, float)))
+            else:
+                all_xs.extend(float(i) for i in range(len(ys)))
+
+    if xlim_spec:
+        xlim = (float(xlim_spec[0]), float(xlim_spec[1]))
+    else:
+        if not all_xs:
+            xlim = (0.0, 1.0)
+        else:
+            min_x, max_x = min(all_xs), max(all_xs)
+            span = max_x - min_x
+            if span == 0:
+                pad = 1.0 if min_x == 0 else abs(min_x) * 0.1
+            else:
+                pad = 0.1 * span
+            xlim = (min_x - pad, max_x + pad)
+
+    if ylim_spec:
+        ylim = (float(ylim_spec[0]), float(ylim_spec[1]))
+    else:
+        if not all_ys:
+            ylim = (0.0, 1.0)
+        else:
+            min_y, max_y = min(all_ys), max(all_ys)
+            span = max_y - min_y
+            if span == 0:
+                pad = 1.0 if min_y == 0 else abs(min_y) * 0.1
+            else:
+                pad = 0.1 * span
+            ylim = (min_y - pad, max_y + pad)
+
+    return xlim, ylim
+
+
+def _render_native_plot_svg(
+    el: Dict[str, Any],
+    cel: Dict[str, Any],
+    el_id: str,
+    spec_style: Any = None,
+) -> str:
+    """Render native SVG markup for a bound plot element."""
+    xlim, ylim = _compute_plot_limits(el, cel)
+    w = float(el.get("w", cel.get("w", 300)))
+    h = float(el.get("h", cel.get("h", 200)))
+    pad_left = min(50.0, w * 0.25)
+    pad_bottom = min(40.0, h * 0.25)
+    pad_top = min(20.0, h * 0.15)
+    pad_right = min(20.0, w * 0.15)
+    x = float(el.get("x", cel.get("x", 0)))
+    y = float(el.get("y", cel.get("y", 0)))
+    fx = (x - w / 2) + pad_left
+    fy = (y - h / 2) + pad_top
+    fw = w - pad_left - pad_right
+    fh = h - pad_top - pad_bottom
+
+    ax, bx = linear_scale(xlim, (fx, fx + fw))
+    ay, by = linear_scale(ylim, (fy + fh, fy))
+
+    style_name = "nature"
+    if isinstance(spec_style, dict):
+        style_name = spec_style.get("name", "nature")
+    elif isinstance(spec_style, str):
+        style_name = spec_style
+    preset = get_style(style_name)
+    colors = preset.get("colors", {})
+    palette = [
+        colors.get("primary", "#0072B2"),
+        colors.get("secondary", "#D55E00"),
+        colors.get("accent", "#009E73"),
+        colors.get("warning", "#F0E442"),
+        colors.get("muted", "#56B4E9"),
+    ]
+    font_family = preset.get("font_family", "DejaVu Sans, Liberation Sans, sans-serif")
+    font_size = float(preset.get("font_size", 12))
+    tick_font_size = max(9.0, font_size * 0.8)
+    text_color = colors.get("text", "#000000")
+    axis_color = colors.get("text", "#333333")
+
+    parts = [f'<g id="{el_id}" class="tf-plot">']
+    # Frame rect
+    parts.append(
+        f'<rect class="tf-plot-frame" x="{_fmt_coord(fx)}" y="{_fmt_coord(fy)}" '
+        f'width="{_fmt_coord(fw)}" height="{_fmt_coord(fh)}" '
+        f'fill="none" stroke="{axis_color}" stroke-width="1" />'
+    )
+
+    # 5 linear ticks on x axis
+    for i in range(5):
+        t_val = xlim[0] + i * (xlim[1] - xlim[0]) / 4
+        sx = ax * t_val + bx
+        parts.append(
+            f'<line x1="{_fmt_coord(sx)}" y1="{_fmt_coord(fy + fh)}" '
+            f'x2="{_fmt_coord(sx)}" y2="{_fmt_coord(fy + fh + 5)}" '
+            f'stroke="{axis_color}" stroke-width="1" />'
+        )
+        parts.append(
+            f'<text x="{_fmt_coord(sx)}" y="{_fmt_coord(fy + fh + 5 + tick_font_size)}" '
+            f'text-anchor="middle" font-family="{font_family}" '
+            f'font-size="{_fmt_coord(tick_font_size)}" fill="{text_color}">'
+            f'{_format_tick(t_val)}</text>'
+        )
+
+    # 5 linear ticks on y axis
+    for j in range(5):
+        t_val = ylim[0] + j * (ylim[1] - ylim[0]) / 4
+        sy = ay * t_val + by
+        parts.append(
+            f'<line x1="{_fmt_coord(fx)}" y1="{_fmt_coord(sy)}" '
+            f'x2="{_fmt_coord(fx - 5)}" y2="{_fmt_coord(sy)}" '
+            f'stroke="{axis_color}" stroke-width="1" />'
+        )
+        parts.append(
+            f'<text x="{_fmt_coord(fx - 8)}" y="{_fmt_coord(sy + tick_font_size * 0.35)}" '
+            f'text-anchor="end" font-family="{font_family}" '
+            f'font-size="{_fmt_coord(tick_font_size)}" fill="{text_color}">'
+            f'{_format_tick(t_val)}</text>'
+        )
+
+    # Axis labels
+    xlabel = el.get("xlabel") or cel.get("xlabel")
+    if xlabel:
+        parts.append(
+            f'<text class="tf-axis-label-x" x="{_fmt_coord(fx + fw / 2)}" '
+            f'y="{_fmt_coord(fy + fh + pad_bottom - 4)}" text-anchor="middle" '
+            f'font-family="{font_family}" font-size="{_fmt_coord(font_size)}" '
+            f'fill="{text_color}">{xlabel}</text>'
+        )
+
+    ylabel = el.get("ylabel") or cel.get("ylabel")
+    if ylabel:
+        yl_x = fx - pad_left + 14
+        yl_y = fy + fh / 2
+        parts.append(
+            f'<text class="tf-axis-label-y" x="{_fmt_coord(yl_x)}" y="{_fmt_coord(yl_y)}" '
+            f'text-anchor="middle" font-family="{font_family}" '
+            f'font-size="{_fmt_coord(font_size)}" fill="{text_color}" '
+            f'transform="rotate(-90, {_fmt_coord(yl_x)}, {_fmt_coord(yl_y)})">{ylabel}</text>'
+        )
+
+    title = el.get("title") or cel.get("title")
+    if title:
+        parts.append(
+            f'<text class="tf-plot-title" x="{_fmt_coord(fx + fw / 2)}" '
+            f'y="{_fmt_coord(fy - 6)}" text-anchor="middle" '
+            f'font-family="{font_family}" font-size="{_fmt_coord(font_size)}" '
+            f'font-weight="bold" fill="{text_color}">{title}</text>'
+        )
+
+    caption = el.get("text") or cel.get("text")
+    if caption:
+        parts.append(
+            f'<text class="tf-plot-caption" x="{_fmt_coord(x)}" '
+            f'y="{_fmt_coord(y + h / 2 + font_size)}" text-anchor="middle" '
+            f'font-family="{font_family}" font-size="{_fmt_coord(font_size)}" '
+            f'fill="{text_color}">{caption}</text>'
+        )
+
+    # Series paths
+    spec_series = _get_plot_series(el)
+    cel_series = _get_plot_series(cel)
+    for k, s in enumerate(cel_series):
+        orig_s = spec_series[k] if k < len(spec_series) else s
+        series_path_id = orig_s.get("id") or s.get("id") or f"{el_id}-s{k}"
+        color = s.get("color") or orig_s.get("color")
+        if color in colors:
+            stroke = colors[color]
+        elif color:
+            stroke = str(color)
+        else:
+            stroke = palette[k % len(palette)]
+        sw = float(s.get("stroke_width", orig_s.get("stroke_width", 2.0)))
+        xs = s.get("x")
+        ys = s.get("y")
+        initial_d = compute_series_d(xs, ys, ax, bx, ay, by)
+        extra_attrs = ""
+        dash = s.get("stroke_dash") or orig_s.get("stroke_dash")
+        if dash:
+            extra_attrs += f' stroke-dasharray="{dash}"'
+        parts.append(
+            f'<path id="{series_path_id}" class="tf-series" d="{initial_d}" '
+            f'fill="none" stroke="{stroke}" stroke-width="{_fmt_coord(sw)}"{extra_attrs} />'
+        )
+
+    parts.append("</g>")
+    return "\n".join(parts)
+
+
+def _plot_series_bindings(
+    el: Dict[str, Any],
+    cel: Dict[str, Any],
+    el_id: str,
+    model_funcs: Iterable[str] = (),
+) -> List[Dict[str, Any]]:
+    entries: List[Dict[str, Any]] = []
+    xlim, ylim = _compute_plot_limits(el, cel)
+    w = float(el.get("w", cel.get("w", 300)))
+    h = float(el.get("h", cel.get("h", 200)))
+    pad_left = min(50.0, w * 0.25)
+    pad_bottom = min(40.0, h * 0.25)
+    pad_top = min(20.0, h * 0.15)
+    pad_right = min(20.0, w * 0.15)
+    x = float(el.get("x", cel.get("x", 0)))
+    y = float(el.get("y", cel.get("y", 0)))
+    fx = (x - w / 2) + pad_left
+    fy = (y - h / 2) + pad_top
+    fw = w - pad_left - pad_right
+    fh = h - pad_top - pad_bottom
+
+    ax, bx = linear_scale(xlim, (fx, fx + fw))
+    ay, by = linear_scale(ylim, (fy + fh, fy))
+
+    spec_series = _get_plot_series(el)
+    cel_series = _get_plot_series(cel)
+
+    for k, s in enumerate(spec_series):
+        if not _contains_binding(s.get("x")) and not _contains_binding(s.get("y")):
+            continue
+        series_path_id = s.get("id") or (cel_series[k].get("id") if k < len(cel_series) else None) or f"{el_id}-s{k}"
+        x_val = s.get("x")
+        y_val = s.get("y")
+        if x_val is not None and _contains_binding(x_val):
+            x_js = _value_to_js(x_val, extra_funcs=model_funcs)[0]
+        elif x_val is not None:
+            x_js = json.dumps(x_val)
+        else:
+            x_js = "null"
+
+        if y_val is not None and _contains_binding(y_val):
+            y_js = _value_to_js(y_val, extra_funcs=model_funcs)[0]
+        elif y_val is not None:
+            y_js = json.dumps(y_val)
+        else:
+            y_js = "null"
+
+        js_expr = f"__tf_series_d({x_js}, {y_js}, {_fmt_coord(ax)}, {_fmt_coord(bx)}, {_fmt_coord(ay)}, {_fmt_coord(by)})"
+        entries.append(_entry(series_path_id, None, "d", js_expr, "value"))
+
+    return entries
+
+
 def _contains_binding(value: Any) -> bool:
     if isinstance(value, str):
         return _BINDING_RE.search(value) is not None
     if isinstance(value, list):
         return any(_contains_binding(v) for v in value)
+    if isinstance(value, dict):
+        return any(_contains_binding(v) for v in value.values())
     return False
 
 
@@ -455,6 +807,13 @@ def _build_bindings(
     elements = spec.get("elements", [])
     concrete_elements = concrete.get("elements", [])
     for idx, el in enumerate(elements):
+        el_type = el.get("type", "box")
+        el_id = el.get("id", "")
+        cel = concrete_elements[idx] if idx < len(concrete_elements) else {}
+        if el_type == "plot":
+            if _is_bound_plot(el):
+                entries.extend(_plot_series_bindings(el, cel, el_id, model_funcs=model_funcs))
+            continue
         bound: Dict[str, Tuple[str, str]] = {}
         for field, value in el.items():
             if field in ("type", "id"):
@@ -463,9 +822,6 @@ def _build_bindings(
                 bound[field] = _value_to_js(value, extra_funcs=model_funcs)
         if not bound:
             continue
-        el_id = el.get("id", "")
-        el_type = el.get("type", "box")
-        cel = concrete_elements[idx]
         if el_type in ("polygon", "pen", "compound") and "points" in bound:
             raise ValueError(
                 f"interactive binding on {el_type}.points is not supported "
@@ -505,8 +861,18 @@ _RUNTIME_JS = r"""(function () {
     for (var i = 1; i < pts.length; i++) s += " L" + pts[i][0] + "," + pts[i][1];
     return s;
   }
+  function __tf_series_d(xs, ys, ax, bx, ay, by) {
+    if (!ys || ys.length === 0) return "";
+    var n = (xs && xs.length) ? Math.min(xs.length, ys.length) : ys.length;
+    var getX = function (i) { return (xs && xs.length) ? xs[i] : i; };
+    var s = "M " + (ax * getX(0) + bx) + " " + (ay * ys[0] + by);
+    for (var i = 1; i < n; i++) {
+      s += " L " + (ax * getX(i) + bx) + " " + (ay * ys[i] + by);
+    }
+    return s;
+  }
   var PARAM_NAMES = Object.keys(__TF_PARAMS);
-  var ARGS = PARAM_NAMES.concat(["__fmt", "__tf_sum", "__tf_d"]);
+  var ARGS = PARAM_NAMES.concat(["__fmt", "__tf_sum", "__tf_d", "__tf_series_d"]);
   function valueOf(b) {
     if (!b._fn) {
       b._fn = new Function(ARGS.join(","), "return (" + b.js + ");");
@@ -515,7 +881,7 @@ _RUNTIME_JS = r"""(function () {
     for (var i = 0; i < PARAM_NAMES.length; i++) {
       vals.push(__TF_PARAMS[PARAM_NAMES[i]]);
     }
-    vals.push(__fmt, __tf_sum, __tf_d);
+    vals.push(__fmt, __tf_sum, __tf_d, __tf_series_d);
     return b._fn.apply(null, vals);
   }
   function applyBinding(b) {
@@ -538,6 +904,7 @@ _RUNTIME_JS = r"""(function () {
       var name = inputs[i].getAttribute("data-name");
       var v = parseFloat(inputs[i].value);
       __TF_PARAMS[name] = v;
+      if (typeof globalThis !== "undefined") globalThis[name] = v;
       var outs = document.querySelectorAll('output.tf-value[data-name="' + name + '"]');
       for (var j = 0; j < outs.length; j++) {
         var unit = outs[j].getAttribute("data-unit");
@@ -550,7 +917,15 @@ _RUNTIME_JS = r"""(function () {
   for (var n = 0; n < inputs.length; n++) {
     inputs[n].addEventListener("input", update);
   }
-  window.__tf = { params: __TF_PARAMS, update: update, bindings: __TF_BINDINGS, fmt: __fmt };
+  for (var p in __TF_PARAMS) {
+    if (typeof globalThis !== "undefined" && typeof globalThis[p] === "undefined") {
+      globalThis[p] = __TF_PARAMS[p];
+    }
+  }
+  window.__tf = { params: __TF_PARAMS, update: update, bindings: __TF_BINDINGS, fmt: __fmt, series_d: __tf_series_d };
+  if (typeof globalThis !== "undefined") {
+    globalThis.__tf_series_d = __tf_series_d;
+  }
   update();
 })();"""
 
@@ -625,6 +1000,8 @@ def create_interactive_svg(
         model_source = load_model_source(spec["model"], base_dir)
         model_js = module_to_js(model_source) + "\n"
         model_funcs = sorted(load_model(spec, base_dir))
+        for fn in model_funcs:
+            model_js += f"if (typeof globalThis !== 'undefined') globalThis.{fn} = {fn};\n"
 
     # 0. Validate params.
     raw_params = spec.get("params", [])
@@ -672,13 +1049,37 @@ def create_interactive_svg(
         used_ids.add(gen)
 
     # 2. Render the concrete SVG at default params via the existing pipeline.
+    render_spec = copy.deepcopy(spec)
+    bound_plot_ids = set()
+    for el in render_spec.get("elements", []):
+        if _is_bound_plot(el):
+            bound_plot_ids.add(el["id"])
+            el["type"] = "box"
+            el["opacity"] = 0
+            el["stroke_opacity"] = 0
+            el["fill_opacity"] = 0
+            el.pop("series", None)
+            el.pop("data", None)
+            el.pop("chart", None)
+
     tmpdir = tempfile.mkdtemp(prefix="tf_interactive_")
     svg_file = str(Path(tmpdir) / "static.svg")
-    render_from_spec(spec, svg_file, base_dir=base_dir)
+    render_from_spec(render_spec, svg_file, base_dir=base_dir)
     svg_text = Path(svg_file).read_text(encoding="utf-8")
 
     # 3. Resolve the concrete spec (same defaults) for geometry constants.
     concrete, _ = resolve_spec(spec, base_dir=base_dir)
+
+    # Replace placeholder groups with native SVG plot groups
+    if bound_plot_ids:
+        concrete_elements = {cel.get("id"): cel for cel in concrete.get("elements", []) if cel.get("id")}
+        for el in spec.get("elements", []):
+            if el.get("id") in bound_plot_ids:
+                el_id = el["id"]
+                cel = concrete_elements.get(el_id, el)
+                plot_svg = _render_native_plot_svg(el, cel, el_id, spec.get("style"))
+                pat = re.compile(rf'<g id="{re.escape(el_id)}"[^>]*>.*?</g>', re.DOTALL)
+                svg_text = pat.sub(plot_svg, svg_text, count=1)
 
     # 4. Parse the rendered SVG (rendered label positions, transforms).
     svg_root = ET.fromstring(svg_text.encode("utf-8"))

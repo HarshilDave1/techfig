@@ -66,7 +66,7 @@ _JS_RESERVED = {
     "return", "super", "switch", "this", "throw", "try", "typeof", "var",
     "void", "while", "with", "yield", "enum", "await", "null", "true",
     "false", "undefined", "NaN", "Infinity", "arguments", "eval",
-    "Math", "__fmt", "__tf_sum", "__tf_d",
+    "Math", "__fmt", "__tf_sum", "__tf_d", "__tf_series_d",
 }
 
 # Helper calls and math members allowed inside model functions (must have

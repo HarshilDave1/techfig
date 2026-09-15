@@ -62,7 +62,7 @@ DIAGRAM_SCHEMA: Dict[str, Any] = {
                 "properties": {
                     "type": {
                         "type": "string",
-                        "enum": ["box", "circle", "diamond", "ellipse", "triangle", "text", "textblock", "line", "arrow", "path", "polygon", "pen", "compound", "image", "callout", "legend"],
+                        "enum": ["box", "circle", "diamond", "ellipse", "triangle", "text", "textblock", "line", "arrow", "path", "polygon", "pen", "compound", "image", "callout", "legend", "plot"],
                     },
                     "id": {"type": "string", "description": "Unique ID for connections"},
                     "text": {"type": "string"},
@@ -128,6 +128,12 @@ DIAGRAM_SCHEMA: Dict[str, Any] = {
                             "required": ["label", "color"],
                         },
                     },
+                    "chart": {"type": "object", "description": "Matplotlib chart specification"},
+                    "series": {"type": "array", "description": "Plot series list for native/interactive plot"},
+                    "xlim": {"type": "array", "description": "Plot x-axis limits [min, max]"},
+                    "ylim": {"type": "array", "description": "Plot y-axis limits [min, max]"},
+                    "xlabel": {"type": "string", "description": "Plot x-axis label"},
+                    "ylabel": {"type": "string", "description": "Plot y-axis label"},
                 },
                 "required": ["type"],
             },
@@ -402,6 +408,9 @@ def validate_spec(spec: Dict[str, Any]) -> List[str]:
                 issues.append(f"element {idx}: anchor_x provided without anchor_y")
             if "anchor_y" in el and "anchor_x" not in el:
                 issues.append(f"element {idx}: anchor_y provided without anchor_x")
+        if el_type == "plot":
+            if not el.get("chart") and not el.get("series") and not el.get("data"):
+                issues.append(f"element {idx}: plot needs chart, series, or data")
 
     for idx, conn in enumerate(spec.get("connections", []) or []):
         if not isinstance(conn, dict):
