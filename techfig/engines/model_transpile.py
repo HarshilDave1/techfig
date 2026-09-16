@@ -247,8 +247,65 @@ def _verr(node: ast.AST, msg: str) -> TranspileError:
     return TranspileError(f"line {lineno}: {msg}")
 
 
+_ALLOWED_MODEL_NODE_TYPES = (
+    ast.Module,
+    ast.FunctionDef,
+    ast.arguments,
+    ast.arg,
+    # Statements
+    ast.Return,
+    ast.Assign,
+    ast.AugAssign,
+    ast.For,
+    ast.While,
+    ast.If,
+    ast.Pass,
+    ast.Break,
+    ast.Continue,
+    ast.Expr,
+    # Expressions
+    ast.Constant,
+    ast.Name,
+    ast.List,
+    ast.Tuple,
+    ast.Subscript,
+    ast.BinOp,
+    ast.UnaryOp,
+    ast.Compare,
+    ast.BoolOp,
+    ast.IfExp,
+    ast.Attribute,
+    ast.Call,
+    # Contexts
+    ast.Load,
+    ast.Store,
+    # Binary operators
+    ast.Add,
+    ast.Sub,
+    ast.Mult,
+    ast.Div,
+    ast.FloorDiv,
+    ast.Mod,
+    ast.Pow,
+    # Unary operators
+    ast.USub,
+    ast.UAdd,
+    ast.Not,
+    # Comparison operators
+    ast.Eq,
+    ast.NotEq,
+    ast.Lt,
+    ast.LtE,
+    ast.Gt,
+    ast.GtE,
+    # Boolean operators
+    ast.And,
+    ast.Or,
+)
+
+
 def _check_ident(name: str, lineno: int, kind: str) -> None:
-    if name.startswith("__") and name.endswith("__"):
+    if "__" in name:
         raise TranspileError(f"line {lineno}: dunder name '{name}' is not allowed")
     if name in _RESERVED_NAMES:
         raise TranspileError(f"line {lineno}: '{name}' is not allowed as a {kind}")
@@ -485,18 +542,63 @@ class _FnCheck:
             self.check_expr(a)
 
 
+def _validate_node_allowlist(root: ast.AST) -> None:
+    if getattr(root, "type_ignores", None):
+        raise _verr(root, "type comments are not allowed")
+    for node in ast.walk(root):
+        if not isinstance(node, _ALLOWED_MODEL_NODE_TYPES):
+            raise _verr(node, f"syntax '{type(node).__name__}' is not allowed in model source")
+
+        if getattr(node, "type_comment", None) is not None:
+            raise _verr(node, "type comments are not allowed")
+
+        if isinstance(node, ast.Name):
+            if "__" in node.id:
+                raise _verr(node, f"dunder name '{node.id}' is not allowed")
+
+        elif isinstance(node, ast.Attribute):
+            if "__" in node.attr:
+                raise _verr(node, f"dunder attribute '{node.attr}' is not allowed")
+
+        elif isinstance(node, ast.FunctionDef):
+            if "__" in node.name:
+                raise _verr(node, f"dunder name '{node.name}' is not allowed")
+            if node.returns is not None:
+                raise _verr(node, "return annotations are not allowed")
+            if node.decorator_list:
+                raise _verr(node, "decorators are not allowed")
+
+        elif isinstance(node, ast.arg):
+            if "__" in node.arg:
+                raise _verr(node, f"dunder name '{node.arg}' is not allowed")
+            if node.annotation is not None:
+                raise _verr(node, "parameter annotations are not allowed")
+
+        elif isinstance(node, ast.arguments):
+            if getattr(node, "posonlyargs", None):
+                target = node.posonlyargs[0]
+                raise _verr(target, "positional-only parameters are not allowed")
+            if (
+                node.vararg or node.kwarg or node.kwonlyargs
+                or node.defaults or any(d is not None for d in node.kw_defaults)
+            ):
+                target = (
+                    node.vararg
+                    or node.kwarg
+                    or (node.kwonlyargs and node.kwonlyargs[0])
+                    or (node.defaults and node.defaults[0])
+                    or node
+                )
+                raise _verr(target, "only plain positional parameters are allowed")
+
+
 def _validate_function(fn: ast.FunctionDef, known: Set[str]) -> List[str]:
+    _check_ident(fn.name, fn.lineno, "function name")
+    _validate_node_allowlist(fn)
     args = fn.args
-    if (
-        args.vararg or args.kwarg or args.kwonlyargs
-        or args.defaults or any(d is not None for d in args.kw_defaults)
-    ):
-        raise _verr(fn, "only plain positional parameters are allowed")
     params = [a.arg for a in args.args]
     for p in args.args:
         _check_ident(p.arg, fn.lineno, "parameter name")
-    if fn.decorator_list:
-        raise _verr(fn, "decorators are not allowed")
     checker = _FnCheck(fn, known)
     for stmt in _skip_docstring(fn.body):
         checker.check_stmt(stmt)
@@ -516,6 +618,8 @@ def validate_model_source(source: str) -> List[ast.FunctionDef]:
         raise TranspileError(
             f"Invalid model source syntax: {exc.msg} (line {exc.lineno})"
         ) from exc
+
+    _validate_node_allowlist(tree)
 
     funcs: List[ast.FunctionDef] = []
     for node in tree.body:
@@ -541,8 +645,9 @@ def validate_model_source(source: str) -> List[ast.FunctionDef]:
 def exec_model_source(source: str) -> Dict[str, Any]:
     """Execute a validated model source; return ``{function name: callable}``.
 
-    The namespace contains only ``math`` and the helper builtins, so even a
-    validation bug cannot reach the real builtins.
+    The namespace contains only ``math`` and the helper builtins. Note that
+    safety relies strictly on ``validate_model_source``; ``__builtins__ = {}``
+    alone cannot prevent Python sandbox escapes if validation is bypassed.
     """
     funcs = validate_model_source(source)
     ns: Dict[str, Any] = {

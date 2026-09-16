@@ -68,6 +68,9 @@ FORBIDDEN = [
     ("with", "def f():\n    with open('x') as fh:\n        return 1\n"),
     ("try", "def f():\n    try:\n        return 1\n    except Exception:\n        return 2\n"),
     ("class", "class A:\n    pass\n"),
+    ("arg_annotation", "def f(x: int):\n    return x\n"),
+    ("return_annotation", "def f(x) -> int:\n    return x\n"),
+    ("posonly_param", "def f(a, /, b):\n    return a + b\n"),
 ]
 
 
@@ -254,6 +257,19 @@ class TestValidateModel:
     def test_kwarg_rejected(self):
         with pytest.raises(ValueError):
             load_model({"model": {"source": "def f(x):\n    return math.cos(x=x)\n"}})
+
+    def test_catch_warnings_rce_payload_rejected(self, tmp_path):
+        marker = tmp_path / "marker"
+        src = (
+            'def f(x: [c for c in ().__class__.__base__.__subclasses__()'
+            f' if c.__name__ == "catch_warnings"][0]()._module.__builtins__["__import__"]("os").system("echo PWNED > {marker}")):\n'
+            '    return x\n'
+        )
+        with pytest.raises(ValueError):
+            validate_model_source(src)
+        with pytest.raises(ValueError):
+            exec_model_source(src)
+        assert not marker.exists()
 
 
 class TestLoadModel:
