@@ -31,6 +31,11 @@ ignored: ``%`` follows the dividend's sign in JS but the divisor's in Python
 (negative operands disagree); a JS for-loop leaves its induction variable one
 increment past the final Python iteration value if read after the loop;
 Python raises ``ZeroDivisionError`` where JS yields ``Infinity``.
+
+Residual risk: Python models execute in a restricted AST sandbox with bounded loop
+iterations (``MAX_LOOP_ITERATIONS``), but in-process execution has no hard wall-clock
+timeout; environments evaluating untrusted models should enforce process-level execution
+timeouts (e.g. timeout / subprocessing).
 """
 import ast
 import json
@@ -591,6 +596,18 @@ def _validate_node_allowlist(root: ast.AST) -> None:
                 )
                 raise _verr(target, "only plain positional parameters are allowed")
 
+        elif isinstance(node, ast.Constant):
+            if isinstance(node.value, int) and node.value.bit_length() > 1024:
+                raise _verr(node, "numeric literal magnitude exceeds limit")
+
+        elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow):
+            if (
+                isinstance(node.right, ast.Constant)
+                and isinstance(node.right.value, (int, float))
+                and abs(node.right.value) > 10_000
+            ):
+                raise _verr(node, f"exponent magnitude exceeds limit ({10_000})")
+
 
 def _validate_function(fn: ast.FunctionDef, known: Set[str]) -> List[str]:
     _check_ident(fn.name, fn.lineno, "function name")
@@ -642,21 +659,93 @@ def validate_model_source(source: str) -> List[ast.FunctionDef]:
 # ---- Python-side execution of the same restricted source --------------------
 
 
+MAX_LOOP_ITERATIONS = 100_000
+
+
+def _safe_range(*args: Any) -> range:
+    try:
+        r = range(*args)
+        if len(r) > MAX_LOOP_ITERATIONS:
+            raise ValueError(
+                f"range() length {len(r)} exceeds maximum loop iterations ({MAX_LOOP_ITERATIONS})"
+            )
+        return r
+    except OverflowError:
+        raise ValueError(
+            f"range() length exceeds maximum loop iterations ({MAX_LOOP_ITERATIONS})"
+        )
+
+
+def _tf_check_loop(cnt: int) -> int:
+    if cnt >= MAX_LOOP_ITERATIONS:
+        raise ValueError(f"Loop exceeded maximum iterations ({MAX_LOOP_ITERATIONS})")
+    return cnt + 1
+
+
+class _LoopBoundTransformer(ast.NodeTransformer):
+    """Instruments While and For loops to enforce MAX_LOOP_ITERATIONS."""
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
+        self.generic_visit(node)
+        has_loops = any(isinstance(n, (ast.While, ast.For)) for n in ast.walk(node))
+        if has_loops:
+            init_stmt = ast.Assign(
+                targets=[ast.Name(id="__tf_loop_cnt", ctx=ast.Store())],
+                value=ast.Constant(value=0),
+                lineno=getattr(node, "lineno", 1),
+                col_offset=getattr(node, "col_offset", 0),
+            )
+            ast.copy_location(init_stmt, node)
+            idx = 1 if (node.body and _is_docstring_stmt(node.body[0])) else 0
+            node.body.insert(idx, init_stmt)
+        return node
+
+    def _instrument_loop(self, node: ast.AST) -> ast.AST:
+        check_stmt = ast.Assign(
+            targets=[ast.Name(id="__tf_loop_cnt", ctx=ast.Store())],
+            value=ast.Call(
+                func=ast.Name(id="__tf_check_loop", ctx=ast.Load()),
+                args=[ast.Name(id="__tf_loop_cnt", ctx=ast.Load())],
+                keywords=[],
+            ),
+            lineno=getattr(node, "lineno", 1),
+            col_offset=getattr(node, "col_offset", 0),
+        )
+        ast.copy_location(check_stmt, node)
+        getattr(node, "body").insert(0, check_stmt)
+        return node
+
+    def visit_While(self, node: ast.While) -> ast.While:
+        self.generic_visit(node)
+        return self._instrument_loop(node)  # type: ignore[return-value]
+
+    def visit_For(self, node: ast.For) -> ast.For:
+        self.generic_visit(node)
+        return self._instrument_loop(node)  # type: ignore[return-value]
+
+
 def exec_model_source(source: str) -> Dict[str, Any]:
     """Execute a validated model source; return ``{function name: callable}``.
 
     The namespace contains only ``math`` and the helper builtins. Note that
     safety relies strictly on ``validate_model_source``; ``__builtins__ = {}``
     alone cannot prevent Python sandbox escapes if validation is bypassed.
+    Loop iterations are bounded by ``MAX_LOOP_ITERATIONS``.
     """
     funcs = validate_model_source(source)
+    tree = ast.parse(source, mode="exec")
+    transformer = _LoopBoundTransformer()
+    tree = transformer.visit(tree)
+    ast.fix_missing_locations(tree)
+
     ns: Dict[str, Any] = {
         "__builtins__": {},
         "math": math,
-        "range": range, "len": len, "abs": abs,
+        "range": _safe_range, "len": len, "abs": abs,
         "min": min, "max": max, "sum": sum, "round": round,
+        "__tf_check_loop": _tf_check_loop,
     }
-    code = compile(source, "<techfig-model>", "exec")
+    code = compile(tree, "<techfig-model>", "exec")
     exec(code, ns)
     return {fn.name: ns[fn.name] for fn in funcs}
 

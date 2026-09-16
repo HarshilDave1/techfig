@@ -587,3 +587,17 @@ class TestInteractiveCliWithModel:
         )
         assert res.returncode == 0, res.stderr
         assert "function R(n1, d, lam) {" in out.read_text()
+
+
+class TestModelResourceLimits:
+    def test_while_infinite_loop_capped(self):
+        src = "def f():\n    while True:\n        pass\n"
+        fns = exec_model_source(src)
+        with pytest.raises(ValueError, match=r"(?i)loop exceeded maximum iterations"):
+            fns["f"]()
+
+    def test_for_infinite_range_capped(self):
+        src = "def f():\n    for i in range(10**12):\n        pass\n"
+        fns = exec_model_source(src)
+        with pytest.raises(ValueError, match=r"(?i)maximum.*iteration|exceeds"):
+            fns["f"]()

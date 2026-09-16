@@ -4,6 +4,13 @@ A spec may declare a top-level ``params`` list and use ``{{expr}}`` bindings
 anywhere inside element/connection string fields.  This module resolves those
 bindings into a concrete spec at a given parameter dict, using a small,
 AST-restricted Python evaluator.
+
+Evaluation guards bound numeric literal magnitude, exponent size, sequence sizing,
+format specifier width/precision, and resource-intensive math calls.
+Residual risk: Evaluation is restricted in AST structure and bounded by explicit
+iteration and magnitude caps, but there is no hard wall-clock timeout in-process;
+OS-level process timeouts (e.g. timeout or subprocessing) should be used where
+untrusted inputs must meet strict execution deadlines.
 """
 import ast
 import builtins
@@ -14,6 +21,18 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 _BINDING_RE = re.compile(r"\{\{(.+?)\}\}")
+
+MAX_EXPONENT = 10_000
+MAX_INT_BITS = 4096
+MAX_NUMERIC_LITERAL_BITS = 1024
+MAX_SEQUENCE_LENGTH = 100_000
+MAX_FMT_WIDTH = 10_000
+MAX_FMT_PRECISION = 1_000
+MAX_FACTORIAL_ARG = 1_000
+
+_FMT_SPEC_RE = re.compile(
+    r"^(?:(.)?[<>=^])?[+-s ]?#?0?(\d+)?(?:_|,)?(?:\.(\d+))?[bcdeEfFgGnosxX%]?$"
+)
 
 
 class UnsafeExpression(ValueError):
@@ -79,6 +98,20 @@ def _check_node(node: ast.AST, env_callables: Tuple[str, ...] = ()) -> None:
     if type(node) not in allowed:
         raise UnsafeExpression(f"Expression contains disallowed syntax: {type(node).__name__}")
 
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, int) and node.value.bit_length() > MAX_NUMERIC_LITERAL_BITS:
+            raise UnsafeExpression("Numeric literal magnitude exceeds limit")
+        if isinstance(node.value, (str, bytes)) and len(node.value) > MAX_SEQUENCE_LENGTH:
+            raise UnsafeExpression(f"String literal length exceeds limit ({MAX_SEQUENCE_LENGTH})")
+
+    if isinstance(node, (ast.List, ast.Tuple)) and len(node.elts) > MAX_SEQUENCE_LENGTH:
+        raise UnsafeExpression(f"Sequence literal length exceeds limit ({MAX_SEQUENCE_LENGTH})")
+
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow):
+        if isinstance(node.right, ast.Constant) and isinstance(node.right.value, (int, float)):
+            if abs(node.right.value) > MAX_EXPONENT:
+                raise UnsafeExpression(f"Exponent magnitude {node.right.value} exceeds limit ({MAX_EXPONENT})")
+
     if isinstance(node, ast.Attribute):
         # Only ``math.<name>`` attribute access is permitted anywhere.
         if not (isinstance(node.value, ast.Name) and node.value.id == "math"):
@@ -120,7 +153,27 @@ _HELPER_FUNCS = {"abs", "min", "max", "round", "len", "fmt", "sum"}
 
 def _fmt(value: Any, spec: str) -> str:
     """Format helper exposed to bindings as ``fmt(x, '.3f')``."""
-    return format(value, spec)
+    if not isinstance(spec, str):
+        raise UnsafeExpression("Format specifier must be a string")
+    if len(spec) > 100:
+        raise UnsafeExpression("Format specifier exceeds maximum length")
+    m = _FMT_SPEC_RE.match(spec)
+    if m:
+        width_str, prec_str = m.group(2), m.group(3)
+        if width_str and int(width_str) > MAX_FMT_WIDTH:
+            raise UnsafeExpression(f"Format field width {width_str} exceeds limit ({MAX_FMT_WIDTH})")
+        if prec_str and int(prec_str) > MAX_FMT_PRECISION:
+            raise UnsafeExpression(f"Format precision {prec_str} exceeds limit ({MAX_FMT_PRECISION})")
+    for num in re.findall(r"\d+", spec):
+        if int(num) > MAX_FMT_WIDTH:
+            raise UnsafeExpression(f"Format specification width/precision {num} exceeds limit ({MAX_FMT_WIDTH})")
+    try:
+        res = format(value, spec)
+    except ValueError as exc:
+        raise UnsafeExpression(f"Invalid format specification: {exc}") from exc
+    if len(res) > MAX_SEQUENCE_LENGTH:
+        raise UnsafeExpression(f"Formatted result exceeds maximum length ({MAX_SEQUENCE_LENGTH})")
+    return res
 
 
 def _resolve_name(name: str, env: Dict[str, Any]) -> Any:
@@ -161,6 +214,8 @@ def safe_eval(expr: str, env: Dict[str, Any] | None = None) -> Any:
 
     def _eval(node: ast.AST) -> Any:
         if isinstance(node, ast.Constant):
+            if isinstance(node.value, int) and node.value.bit_length() > MAX_NUMERIC_LITERAL_BITS:
+                raise UnsafeExpression("Numeric literal magnitude exceeds limit")
             return node.value
         if isinstance(node, ast.Name):
             return _resolve_name(node.id, env)
@@ -181,10 +236,32 @@ def safe_eval(expr: str, env: Dict[str, Any] | None = None) -> Any:
             left = _eval(node.left)
             right = _eval(node.right)
             if isinstance(node.op, ast.Add):
+                if isinstance(left, (str, list, tuple)) and isinstance(right, (str, list, tuple)):
+                    if len(left) + len(right) > MAX_SEQUENCE_LENGTH:
+                        raise UnsafeExpression(f"Sequence addition exceeds maximum size ({MAX_SEQUENCE_LENGTH})")
+                elif isinstance(left, int) and isinstance(right, int):
+                    if max(left.bit_length(), right.bit_length()) > MAX_INT_BITS:
+                        raise UnsafeExpression("Integer addition exceeds maximum magnitude")
                 return left + right
             if isinstance(node.op, ast.Sub):
+                if isinstance(left, int) and isinstance(right, int):
+                    if max(left.bit_length(), right.bit_length()) > MAX_INT_BITS:
+                        raise UnsafeExpression("Integer subtraction exceeds maximum magnitude")
                 return left - right
             if isinstance(node.op, ast.Mult):
+                if isinstance(left, (str, list, tuple)) and isinstance(right, int):
+                    if right > 0 and len(left) * right > MAX_SEQUENCE_LENGTH:
+                        raise UnsafeExpression(
+                            f"Sequence multiplication exceeds maximum size ({MAX_SEQUENCE_LENGTH})"
+                        )
+                elif isinstance(right, (str, list, tuple)) and isinstance(left, int):
+                    if left > 0 and len(right) * left > MAX_SEQUENCE_LENGTH:
+                        raise UnsafeExpression(
+                            f"Sequence multiplication exceeds maximum size ({MAX_SEQUENCE_LENGTH})"
+                        )
+                elif isinstance(left, int) and isinstance(right, int):
+                    if left.bit_length() + right.bit_length() > MAX_INT_BITS:
+                        raise UnsafeExpression("Integer multiplication exceeds maximum magnitude")
                 return left * right
             if isinstance(node.op, ast.Div):
                 return left / right
@@ -193,6 +270,11 @@ def safe_eval(expr: str, env: Dict[str, Any] | None = None) -> Any:
             if isinstance(node.op, ast.Mod):
                 return left % right
             if isinstance(node.op, ast.Pow):
+                if isinstance(right, (int, float)) and abs(right) > MAX_EXPONENT:
+                    raise UnsafeExpression(f"Exponent magnitude {right} exceeds limit ({MAX_EXPONENT})")
+                if isinstance(left, int) and isinstance(right, int) and right > 0:
+                    if left.bit_length() * right > MAX_INT_BITS:
+                        raise UnsafeExpression("Exponentiation result exceeds maximum magnitude")
                 return left ** right
             raise UnsafeExpression(f"Unsupported binary operator: {type(node.op).__name__}")
         if isinstance(node, ast.UnaryOp):
@@ -250,6 +332,20 @@ def safe_eval(expr: str, env: Dict[str, Any] | None = None) -> Any:
                 # math.<fn>
                 if func_node.attr not in _ALLOWED_MATH:
                     raise UnsafeExpression(f"math.{func_node.attr} is not allowed")
+                if func_node.attr == "factorial":
+                    if not args or not isinstance(args[0], int) or args[0] < 0 or args[0] > MAX_FACTORIAL_ARG:
+                        raise UnsafeExpression(
+                            f"math.factorial argument must be an integer between 0 and {MAX_FACTORIAL_ARG}"
+                        )
+                elif func_node.attr in ("comb", "perm"):
+                    if args and isinstance(args[0], int) and args[0] > 10_000:
+                        raise UnsafeExpression(f"math.{func_node.attr} argument exceeds maximum limit")
+                elif func_node.attr in ("gamma", "lgamma"):
+                    if args and isinstance(args[0], (int, float)) and abs(args[0]) > 1e10:
+                        raise UnsafeExpression(f"math.{func_node.attr} argument exceeds maximum limit")
+                elif func_node.attr == "pow":
+                    if len(args) >= 2 and isinstance(args[1], (int, float)) and abs(args[1]) > MAX_EXPONENT:
+                        raise UnsafeExpression(f"math.pow exponent exceeds maximum limit ({MAX_EXPONENT})")
                 return getattr(math, func_node.attr)(*args, **kwargs)
             if isinstance(func_node, ast.Name):
                 fn = func_node.id
@@ -260,6 +356,8 @@ def safe_eval(expr: str, env: Dict[str, Any] | None = None) -> Any:
                 if fn == "sum":
                     if len(args) != 1:
                         raise UnsafeExpression("sum() takes exactly 1 argument")
+                    if isinstance(args[0], (list, tuple)) and len(args[0]) > MAX_SEQUENCE_LENGTH:
+                        raise UnsafeExpression(f"sum() sequence exceeds maximum size ({MAX_SEQUENCE_LENGTH})")
                     return sum(args[0])
                 if fn in env and callable(env[fn]):
                     return env[fn](*args, **kwargs)

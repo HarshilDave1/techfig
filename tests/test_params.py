@@ -138,3 +138,38 @@ class TestResolveSpecValidation:
     def test_param_must_have_name(self):
         with pytest.raises(ValueError, match="'name'"):
             resolve_spec({"params": [{"min": 0, "max": 1, "step": 0.1, "value": 0.5}], "elements": []})
+
+
+class TestSafeEvalResourceLimits:
+    """Explicit guards that raise UnsafeExpression rather than exhausting resources."""
+
+    def test_exponent_magnitude_capped(self):
+        with pytest.raises(UnsafeExpression, match=r"(?i)exponent"):
+            safe_eval("9**9**9")
+        with pytest.raises(UnsafeExpression, match=r"(?i)exponent"):
+            safe_eval("2**100000")
+
+    def test_math_factorial_capped(self):
+        with pytest.raises(UnsafeExpression, match=r"(?i)factorial"):
+            safe_eval("math.factorial(10**7)")
+        with pytest.raises(UnsafeExpression, match=r"(?i)factorial"):
+            safe_eval("math.factorial(1001)")
+
+    def test_sequence_sizing_capped(self):
+        with pytest.raises(UnsafeExpression, match=r"(?i)sequence"):
+            safe_eval("'a'*10**10")
+        with pytest.raises(UnsafeExpression, match=r"(?i)sequence"):
+            safe_eval("10**10*'a'")
+        with pytest.raises(UnsafeExpression, match=r"(?i)sequence"):
+            safe_eval("[1]*10**10")
+
+    def test_numeric_literal_magnitude_capped(self):
+        huge_int_str = "9" * 400
+        with pytest.raises(UnsafeExpression, match=r"(?i)magnitude|limit"):
+            safe_eval(huge_int_str)
+
+    def test_fmt_width_and_precision_capped(self):
+        with pytest.raises(UnsafeExpression, match=r"(?i)format"):
+            safe_eval("fmt(1, '>1000000000')")
+        with pytest.raises(UnsafeExpression, match=r"(?i)format"):
+            safe_eval("fmt(1.5, '.1000000f')")
