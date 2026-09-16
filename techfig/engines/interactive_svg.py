@@ -941,12 +941,32 @@ def _build_bindings(
 # ---- runtime (vanilla JS, no deps) ----------------------------------------
 
 _RUNTIME_JS = r"""(function () {
+  function __tf_round_even(v, p) {
+    p = p || 0;
+    var factor = Math.pow(10, p);
+    var n = v * factor;
+    var floor = Math.floor(n);
+    var diff = n - floor;
+    var rounded;
+    if (Math.abs(diff - 0.5) < 1e-12) {
+      rounded = (floor % 2 === 0) ? floor : floor + 1;
+    } else {
+      rounded = Math.round(n);
+    }
+    return rounded / factor;
+  }
   function __fmt(x, spec) {
     var v = Number(x);
     var m = /^\.(\d+)f$/.exec(spec);
-    if (m) return v.toFixed(parseInt(m[1], 10));
+    if (m) {
+      var prec = parseInt(m[1], 10);
+      return __tf_round_even(v, prec).toFixed(prec);
+    }
     m = /^\.(\d+)%$/.exec(spec);
-    if (m) return (v * 100).toFixed(parseInt(m[1], 10)) + "%";
+    if (m) {
+      var prec = parseInt(m[1], 10);
+      return __tf_round_even(v * 100, prec).toFixed(prec) + "%";
+    }
     m = /^\.(\d+)e$/.exec(spec);
     if (m) {
       var s = v.toExponential(parseInt(m[1], 10));
@@ -954,8 +974,8 @@ _RUNTIME_JS = r"""(function () {
         return "e" + sign + (digits.length < 2 ? "0" + digits : digits);
       });
     }
-    if (spec === "d") return String(Math.round(v));
-    return String(v);
+    if (spec === "d") return String(__tf_round_even(v, 0));
+    throw new Error("Unsupported format specifier: " + spec);
   }
   function __tf_sum(xs) {
     var s = 0;
@@ -1117,6 +1137,7 @@ _RUNTIME_JS = r"""(function () {
   var tf = (typeof window !== "undefined" && window.__tf) ? window.__tf : {};
   tf.figs = tf.figs || {};
   tf.fmt = __fmt;
+  tf.roundEven = __tf_round_even;
   tf.sum = __tf_sum;
   tf.d = __tf_d;
   tf.series_d = __tf_series_d;

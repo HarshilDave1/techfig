@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from techfig.engines.interactive_svg import create_interactive_svg
-from techfig.engines.params import resolve_spec
+from techfig.engines.params import UnsafeExpression, resolve_spec
 from techfig.engines.sketch_interpreter import render_from_spec, validate_spec
 
 
@@ -351,4 +351,151 @@ def test_resolve_spec_state_and_readout():
     assert concrete_running["elements"][0]["value"] == 40
     assert concrete_running["elements"][0]["verdict"]["value"] is False
     assert concrete_running["elements"][0]["visible_when"] is True
+
+
+NODE = shutil.which("node")
+
+
+@pytest.mark.skipif(NODE is None, reason="node not available")
+def test_readout_parity_python_and_node(temp_dir):
+    """Readout parity test comparing static Python rendering vs live Node JS evaluation."""
+    spec = {
+        "canvas": {"width": 800, "height": 600},
+        "params": [
+            {"name": "a", "min": 0, "max": 10, "step": 0.5, "value": 2.5},
+            {"name": "b", "min": 0, "max": 10, "step": 1, "value": 0},
+            {"name": "c", "min": 0, "max": 10, "step": 0.5, "value": 3.5},
+        ],
+        "elements": [
+            {"type": "readout", "id": "r1", "x": 0, "y": 0, "expr": "a", "format": ".0f", "label": "fmt_half_2_5"},
+            {"type": "readout", "id": "r2", "x": 0, "y": 30, "expr": "c", "format": ".0f", "label": "fmt_half_3_5"},
+            {"type": "readout", "id": "r3", "x": 0, "y": 60, "expr": "round(a/3, 2)", "label": "round_2arg"},
+            {"type": "readout", "id": "r4", "x": 0, "y": 90, "expr": "round(a)", "label": "round_1arg"},
+            {"type": "readout", "id": "r5", "x": 0, "y": 120, "expr": "b or 7", "label": "or"},
+            {"type": "readout", "id": "r6", "x": 0, "y": 150, "expr": "b != 0 and 1/b > 1", "label": "guard"},
+            {"type": "readout", "id": "r7", "x": 0, "y": 180, "expr": "a", "format": "d", "label": "fmt_d"},
+            {"type": "readout", "id": "r8", "x": 0, "y": 210, "expr": "min([10, 20, 5])", "label": "min_list"},
+            {"type": "readout", "id": "r9", "x": 0, "y": 240, "expr": "max([10, 20, 5])", "label": "max_list"},
+        ],
+    }
+    out_html = temp_dir / "parity_test.html"
+    create_interactive_svg(spec, str(out_html))
+    html_src = out_html.read_text(encoding="utf-8")
+
+    # Static values from Python rendered SVG
+    static_readouts = re.findall(r'class="tf-readout-text"[^>]*>([^<]*)<', html_src)
+
+    # Evaluate in Node
+    scripts = re.findall(r"<script(?:\s+[^>]*)?>(.*?)</script>", html_src, re.DOTALL)
+    runtime_script = scripts[-1] if scripts else ""
+
+    harness = f"""
+function makeEl(id) {{
+  var valNode = {{ textContent: "" }};
+  return {{
+    id: id,
+    querySelector: function(sel) {{ return valNode; }},
+    valNode: valNode,
+    classList: {{ add: function() {{}}, remove: function() {{}} }},
+    style: {{}}
+  }};
+}}
+var elements = {{}};
+var ids = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9'];
+for (var i = 0; i < ids.length; i++) {{
+  elements[ids[i]] = makeEl(ids[i]);
+}}
+global.window = {{ __tf: null }};
+global.document = {{
+  querySelectorAll: function(sel) {{ return []; }},
+  getElementById: function(id) {{ return elements[id] || null; }}
+}};
+{runtime_script}
+var live_texts = [];
+for (var j = 0; j < ids.length; j++) {{
+  live_texts.push(elements[ids[j]].valNode.textContent);
+}}
+console.log(JSON.stringify(live_texts));
+"""
+    harness_file = temp_dir / "readout_parity_harness.js"
+    harness_file.write_text(harness, encoding="utf-8")
+    res = subprocess.run([NODE, str(harness_file)], capture_output=True, text=True)
+    assert res.returncode == 0, f"Node run failed: {res.stderr}"
+    live_readouts = json.loads(res.stdout)
+
+    assert static_readouts == live_readouts
+    # Specific assertions ensuring parity matches requirements
+    assert "fmt_half_2_5: 2" in static_readouts
+    assert "fmt_half_3_5: 4" in static_readouts
+    assert "round_2arg: 0.83" in static_readouts
+    assert "or: 7" in static_readouts
+    assert "guard: false" in static_readouts
+    assert "fmt_d: 2" in static_readouts
+    assert "min_list: 5" in static_readouts
+    assert "max_list: 20" in static_readouts
+
+
+def test_swallowed_errors_propagate_unbraced_readout_expr(temp_dir):
+    bad = {
+        "canvas": {"width": 300, "height": 200},
+        "elements": [{"type": "readout", "id": "r", "x": 0, "y": 0, "expr": "undefined_name * 2"}],
+    }
+    with pytest.raises(UnsafeExpression, match="undefined_name"):
+        resolve_spec(bad)
+    with pytest.raises(UnsafeExpression, match="undefined_name"):
+        render_from_spec(bad, str(temp_dir / "bad_unbraced_readout.svg"))
+
+
+def test_swallowed_errors_propagate_braced_readout_expr(temp_dir):
+    bad = {
+        "canvas": {"width": 300, "height": 200},
+        "elements": [{"type": "readout", "id": "r", "x": 0, "y": 0, "expr": "{{undefined_name * 2}}"}],
+    }
+    with pytest.raises(UnsafeExpression, match="undefined_name"):
+        resolve_spec(bad)
+    with pytest.raises(UnsafeExpression, match="undefined_name"):
+        render_from_spec(bad, str(temp_dir / "bad_braced_readout.svg"))
+
+
+def test_swallowed_errors_propagate_unbraced_visible_when(temp_dir):
+    bad = {
+        "canvas": {"width": 300, "height": 200},
+        "elements": [{"type": "text", "id": "t", "x": 0, "y": 50, "text": "hi", "visible_when": "typo_state == 'x'"}],
+    }
+    with pytest.raises(UnsafeExpression, match="typo_state"):
+        resolve_spec(bad)
+    with pytest.raises(UnsafeExpression, match="typo_state"):
+        render_from_spec(bad, str(temp_dir / "bad_unbraced_vw.svg"))
+
+
+def test_swallowed_errors_propagate_braced_visible_when(temp_dir):
+    bad = {
+        "canvas": {"width": 300, "height": 200},
+        "elements": [{"type": "text", "id": "t", "x": 0, "y": 50, "text": "hi", "visible_when": "{{typo_state == 'x'}}"}],
+    }
+    with pytest.raises(UnsafeExpression, match="typo_state"):
+        resolve_spec(bad)
+    with pytest.raises(UnsafeExpression, match="typo_state"):
+        render_from_spec(bad, str(temp_dir / "bad_braced_vw.svg"))
+
+
+def test_swallowed_errors_propagate_verdict_expr(temp_dir):
+    bad = {
+        "canvas": {"width": 300, "height": 200},
+        "elements": [
+            {
+                "type": "readout",
+                "id": "r",
+                "x": 0,
+                "y": 0,
+                "expr": "1",
+                "verdict": {"expr": "undefined_cond > 0", "true": "yes", "false": "no"},
+            }
+        ],
+    }
+    with pytest.raises(UnsafeExpression, match="undefined_cond"):
+        resolve_spec(bad)
+    with pytest.raises(UnsafeExpression, match="undefined_cond"):
+        render_from_spec(bad, str(temp_dir / "bad_verdict.svg"))
+
 

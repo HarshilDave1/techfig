@@ -185,11 +185,9 @@ def _is_visible(item: Dict[str, Any]) -> bool:
         s = vw.strip()
         if s.startswith("{{") and s.endswith("}}"):
             s = s[2:-2].strip()
-        try:
-            return bool(safe_eval(s, {}))
-        except Exception:
-            return bool(s)
+        return bool(safe_eval(s, {}))
     return bool(vw)
+
 
 
 def create_diagram(
@@ -588,16 +586,13 @@ def create_diagram(
                 expr_str = str(el["expr"]).strip()
                 if expr_str.startswith("{{") and expr_str.endswith("}}"):
                     expr_str = expr_str[2:-2].strip()
-                try:
-                    val = safe_eval(expr_str, {})
-                except Exception:
-                    val = el["expr"]
+                val = safe_eval(expr_str, {})
 
             fmt = el.get("format")
-            if fmt and isinstance(val, (int, float)):
+            if fmt and (isinstance(val, (int, float)) or isinstance(val, bool)):
                 formatted_val = _fmt(val, fmt)
             else:
-                formatted_val = str(val) if val is not None else ""
+                formatted_val = ("true" if val else "false") if isinstance(val, bool) else (str(val) if val is not None else "")
 
             unit = el.get("unit")
             if unit:
@@ -620,10 +615,7 @@ def create_diagram(
                     ve_str = str(verdict_spec["expr"]).strip()
                     if ve_str.startswith("{{") and ve_str.endswith("}}"):
                         ve_str = ve_str[2:-2].strip()
-                    try:
-                        v_val = bool(safe_eval(ve_str, {}))
-                    except Exception:
-                        v_val = False
+                    v_val = bool(safe_eval(ve_str, {}))
                 else:
                     v_val = bool(v_val)
 

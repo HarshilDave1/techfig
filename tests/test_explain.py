@@ -310,3 +310,36 @@ console.log(JSON.stringify({{
         assert float(results["fig2"]) == 2000
         assert results["fig1"] != results["fig2"]
 
+    def test_explain_static_figure_honors_visible_when_falsy_at_defaults(self, tmp_path):
+        """Static figures in explain must skip elements whose visible_when is falsy at defaults (T5)."""
+        spec = {
+            "canvas": {"width": 400, "height": 300},
+            "params": [
+                {"name": "show_secret", "kind": "state", "options": ["no", "yes"], "value": "no"},
+            ],
+            "elements": [
+                {"type": "text", "id": "t_visible", "x": 0, "y": 0, "text": "VISIBLE_ALWAYS"},
+                {"type": "text", "id": "t_hidden", "x": 0, "y": 50, "text": "HIDDEN_SECRET", "visible_when": "show_secret == 'yes'"},
+            ],
+        }
+        spec_file = tmp_path / "static_spec.json"
+        spec_file.write_text(json.dumps(spec), encoding="utf-8")
+
+        md_content = f"""# Static Figure Visible When Test
+
+```techfig
+file: {spec_file.name}
+```
+Caption: A static figure testing visible_when.
+"""
+
+        md_file = tmp_path / "explainer.md"
+        md_file.write_text(md_content, encoding="utf-8")
+
+        out_html = tmp_path / "explainer.html"
+        assemble_explainer_page(md_file, out_html)
+        html = out_html.read_text(encoding="utf-8")
+        assert "VISIBLE_ALWAYS" in html
+        assert "HIDDEN_SECRET" not in html
+
+

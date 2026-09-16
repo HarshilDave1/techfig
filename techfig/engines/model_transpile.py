@@ -234,6 +234,26 @@ def _trans_call(node: ast.Call, ctx: Optional[_Ctx]) -> str:
                 if ctx is not None and ctx.module_mode:
                     return f"{args[0]}.reduce((a, b) => a + b, 0)"
                 return f"__tf_sum({args[0]})"
+            if name in ("min", "max"):
+                if not args:
+                    raise TranspileError(f"{name}() takes at least 1 argument")
+                if len(args) == 1:
+                    return f"Math.{name}(...{args[0]})"
+                return f"Math.{name}({', '.join(args)})"
+            if name == "round":
+                if len(args) == 1:
+                    return (
+                        f"(((v, p = 0) => {{ var m = Math.pow(10, p), n = v * m, f = Math.floor(n); "
+                        f"return (Math.abs(n - f - 0.5) < 1e-12 ? (f % 2 === 0 ? f : f + 1) : Math.round(n)) / m; "
+                        f"}})({args[0]}))"
+                    )
+                if len(args) == 2:
+                    return (
+                        f"(((v, p = 0) => {{ var m = Math.pow(10, p), n = v * m, f = Math.floor(n); "
+                        f"return (Math.abs(n - f - 0.5) < 1e-12 ? (f % 2 === 0 ? f : f + 1) : Math.round(n)) / m; "
+                        f"}})({args[0]}, {args[1]}))"
+                    )
+                raise TranspileError("round() takes 1 or 2 arguments")
             return f"Math.{name}({', '.join(args)})"
         if ctx is not None and name in ctx.extra_funcs:
             return f"{name}({', '.join(args)})"
@@ -541,6 +561,14 @@ class _FnCheck:
                 raise _verr(node, "range() is only allowed in for-loop headers")
             if func.id not in _MODEL_HELPERS and func.id not in self.known:
                 raise _verr(node, f"call to '{func.id}' is not defined in the model")
+            if func.id == "len" and len(node.args) != 1:
+                raise _verr(node, "len() takes exactly 1 argument")
+            if func.id == "sum" and len(node.args) != 1:
+                raise _verr(node, "sum() takes exactly 1 argument")
+            if func.id in ("min", "max") and len(node.args) < 1:
+                raise _verr(node, f"{func.id}() takes at least 1 argument")
+            if func.id == "round" and len(node.args) not in (1, 2):
+                raise _verr(node, "round() takes 1 or 2 arguments")
         else:
             raise _verr(node, "unsupported call form")
         for a in node.args:

@@ -290,7 +290,7 @@ def render_explainer(
         else:
             with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as tf:
                 tmp_svg = tf.name
-            render_from_spec(copy.deepcopy(spec), tmp_svg, base_dir=spec_base, skip_hidden=False)
+            render_from_spec(copy.deepcopy(spec), tmp_svg, base_dir=spec_base, skip_hidden=True)
             raw_svg = Path(tmp_svg).read_text(encoding="utf-8")
             try:
                 Path(tmp_svg).unlink()

@@ -151,29 +151,50 @@ _ALLOWED_MATH = {
 _HELPER_FUNCS = {"abs", "min", "max", "round", "len", "fmt", "sum"}
 
 
+_ALLOWED_FMT_RE = re.compile(r"^(?:\.(\d+)([f%e])|d)$")
+
+
 def _fmt(value: Any, spec: str) -> str:
-    """Format helper exposed to bindings as ``fmt(x, '.3f')``."""
+    """Format helper exposed to bindings as ``fmt(x, '.3f')``.
+
+    Allowed format subset: .Nf, .N%, .Ne, d.
+    Uses round-half-to-even (banker's rounding) on floats formatted with 'd'.
+    """
     if not isinstance(spec, str):
         raise UnsafeExpression("Format specifier must be a string")
     if len(spec) > 100:
         raise UnsafeExpression("Format specifier exceeds maximum length")
-    m = _FMT_SPEC_RE.match(spec)
-    if m:
-        width_str, prec_str = m.group(2), m.group(3)
-        if width_str and int(width_str) > MAX_FMT_WIDTH:
-            raise UnsafeExpression(f"Format field width {width_str} exceeds limit ({MAX_FMT_WIDTH})")
-        if prec_str and int(prec_str) > MAX_FMT_PRECISION:
-            raise UnsafeExpression(f"Format precision {prec_str} exceeds limit ({MAX_FMT_PRECISION})")
-    for num in re.findall(r"\d+", spec):
-        if int(num) > MAX_FMT_WIDTH:
-            raise UnsafeExpression(f"Format specification width/precision {num} exceeds limit ({MAX_FMT_WIDTH})")
-    try:
-        res = format(value, spec)
-    except ValueError as exc:
-        raise UnsafeExpression(f"Invalid format specification: {exc}") from exc
+    m = _ALLOWED_FMT_RE.match(spec)
+    if not m:
+        raise UnsafeExpression(f"Unsupported format specifier: {spec!r}. Allowed formats: .Nf, .N%, .Ne, d")
+    prec_str = m.group(1)
+    if prec_str and int(prec_str) > MAX_FMT_PRECISION:
+        raise UnsafeExpression(f"Format precision {prec_str} exceeds limit ({MAX_FMT_PRECISION})")
+
+    if spec == "d":
+        try:
+            if isinstance(value, bool):
+                val_int = int(value)
+            elif isinstance(value, (int, float)):
+                val_int = int(round(value))
+            else:
+                val_int = int(round(float(value)))
+            res = format(val_int, "d")
+        except (ValueError, TypeError) as exc:
+            raise UnsafeExpression(f"Invalid value for format 'd': {exc}") from exc
+    else:
+        try:
+            if isinstance(value, (int, float)):
+                res = format(value, spec)
+            else:
+                res = format(float(value), spec)
+        except (ValueError, TypeError) as exc:
+            raise UnsafeExpression(f"Invalid format specification: {exc}") from exc
+
     if len(res) > MAX_SEQUENCE_LENGTH:
         raise UnsafeExpression(f"Formatted result exceeds maximum length ({MAX_SEQUENCE_LENGTH})")
     return res
+
 
 
 def _resolve_name(name: str, env: Dict[str, Any]) -> Any:
@@ -309,11 +330,20 @@ def safe_eval(expr: str, env: Dict[str, Any] | None = None) -> Any:
                 left = right
             return True
         if isinstance(node, ast.BoolOp):
-            values = [_eval(v) for v in node.values]
             if isinstance(node.op, ast.And):
-                return all(values)
+                val: Any = None
+                for v in node.values:
+                    val = _eval(v)
+                    if not val:
+                        return val
+                return val
             if isinstance(node.op, ast.Or):
-                return any(values)
+                val: Any = None
+                for v in node.values:
+                    val = _eval(v)
+                    if val:
+                        return val
+                return val
             raise UnsafeExpression(f"Unsupported boolean operator: {type(node.op).__name__}")
         if isinstance(node, ast.IfExp):
             return _eval(node.body) if _eval(node.test) else _eval(node.orelse)
@@ -423,10 +453,7 @@ def _resolve_value(value: Any, env: Dict[str, Any], path: List[str | int], bindi
                     s = expr_val.strip()
                     if s.startswith("{{") and s.endswith("}}"):
                         s = s[2:-2].strip()
-                    try:
-                        resolved["value"] = safe_eval(s, env)
-                    except Exception:
-                        resolved["value"] = expr_val
+                    resolved["value"] = safe_eval(s, env)
                 else:
                     resolved["value"] = expr_val
             verdict = resolved.get("verdict")
@@ -436,21 +463,14 @@ def _resolve_value(value: Any, env: Dict[str, Any], path: List[str | int], bindi
                     s = v_expr.strip()
                     if s.startswith("{{") and s.endswith("}}"):
                         s = s[2:-2].strip()
-                    try:
-                        v_bool = bool(safe_eval(s, env))
-                    except Exception:
-                        v_bool = False
-                    verdict["value"] = v_bool
+                    verdict["value"] = bool(safe_eval(s, env))
         if "visible_when" in resolved:
             vw = resolved["visible_when"]
             if isinstance(vw, str):
                 s = vw.strip()
                 if s.startswith("{{") and s.endswith("}}"):
                     s = s[2:-2].strip()
-                try:
-                    resolved["visible_when"] = bool(safe_eval(s, env))
-                except Exception:
-                    pass
+                resolved["visible_when"] = bool(safe_eval(s, env))
         return resolved
 
     if isinstance(value, list):
