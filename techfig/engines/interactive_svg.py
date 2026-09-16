@@ -979,9 +979,12 @@ _RUNTIME_JS = r"""(function () {
     return s;
   }
 
-  function valueOf(b, params) {
+  function valueOf(b, params, model) {
+    params = params || {};
+    model = model || {};
     var paramNames = Object.keys(params);
-    var args = paramNames.concat(["__fmt", "__tf_sum", "__tf_d", "__tf_series_d"]);
+    var modelNames = Object.keys(model);
+    var args = paramNames.concat(modelNames).concat(["__fmt", "__tf_sum", "__tf_d", "__tf_series_d"]);
     if (!b._fn) {
       b._fn = new Function(args.join(","), "return (" + b.js + ");");
     }
@@ -989,11 +992,14 @@ _RUNTIME_JS = r"""(function () {
     for (var i = 0; i < paramNames.length; i++) {
       vals.push(params[paramNames[i]]);
     }
+    for (var j = 0; j < modelNames.length; j++) {
+      vals.push(model[modelNames[j]]);
+    }
     vals.push(__fmt, __tf_sum, __tf_d, __tf_series_d);
     return b._fn.apply(null, vals);
   }
 
-  function applyBinding(b, params) {
+  function applyBinding(b, params, model) {
     if (typeof document === "undefined" || !document.getElementById) return;
     var el = document.getElementById(b.id);
     if (!el) return;
@@ -1002,7 +1008,7 @@ _RUNTIME_JS = r"""(function () {
       if (!el) return;
     }
     if (b.kind === "class" || b.kind === "classToggle") {
-      var cond = Boolean(valueOf(b, params));
+      var cond = Boolean(valueOf(b, params, model));
       if (cond) {
         if (b.falseClass) el.classList.remove(b.falseClass);
         if (b.trueClass) el.classList.add(b.trueClass);
@@ -1013,11 +1019,11 @@ _RUNTIME_JS = r"""(function () {
       return;
     }
     if (b.kind === "visibility") {
-      var visible = Boolean(valueOf(b, params));
+      var visible = Boolean(valueOf(b, params, model));
       el.style.display = visible ? "" : "none";
       return;
     }
-    var v = valueOf(b, params);
+    var v = valueOf(b, params, model);
     if (b.attr === "textContent") {
       el.textContent = v;
       return;
@@ -1045,35 +1051,37 @@ _RUNTIME_JS = r"""(function () {
     for (var k = 0; k < fig.bindings.length; k++) {
       var b = fig.bindings[k];
       if (b.kind !== "class" && b.kind !== "classToggle" && b.kind !== "visibility") {
-        applyBinding(b, fig.params);
+        applyBinding(b, fig.params, fig.model);
       }
     }
     for (var k = 0; k < fig.bindings.length; k++) {
       var b = fig.bindings[k];
       if (b.kind === "class" || b.kind === "classToggle") {
-        applyBinding(b, fig.params);
+        applyBinding(b, fig.params, fig.model);
       }
     }
     for (var k = 0; k < fig.bindings.length; k++) {
       var b = fig.bindings[k];
       if (b.kind === "visibility") {
-        applyBinding(b, fig.params);
+        applyBinding(b, fig.params, fig.model);
       }
     }
   }
 
-  function register(figId, bindings, params) {
+  function register(figId, bindings, params, model) {
     figId = figId || "";
     var fig = {
       id: figId,
       bindings: bindings || [],
       params: params || {},
+      model: model || {},
       update: function () { updateFig(fig); }
     };
     tf.figs[figId] = fig;
     if (!tf.bindings || figId === "") {
       tf.bindings = fig.bindings;
       tf.params = fig.params;
+      tf.model = fig.model;
       tf.update = function () {
         for (var f in tf.figs) {
           if (tf.figs[f] && tf.figs[f].update) {
@@ -1121,7 +1129,7 @@ _RUNTIME_JS = r"""(function () {
     globalThis.__tf_series_d = __tf_series_d;
   }
   if (typeof __TF_PARAMS !== "undefined" && typeof __TF_BINDINGS !== "undefined") {
-    register("", __TF_BINDINGS, __TF_PARAMS);
+    register("", __TF_BINDINGS, __TF_PARAMS, typeof __TF_MODEL !== "undefined" ? __TF_MODEL : (typeof __tf_model !== "undefined" ? __tf_model : {}));
   }
 })();"""
 
@@ -1222,22 +1230,36 @@ def render_interactive_fragment(
 
     model_js = ""
     model_funcs: List[str] = []
+    clean_id = re.sub(r"[^a-zA-Z0-9_]", "_", fig_id) if fig_id else ""
     if spec.get("model"):
         model_source = load_model_source(spec["model"], base_dir)
-        model_js = module_to_js(model_source) + "\n"
+        raw_model_js = module_to_js(model_source)
         model_funcs = sorted(load_model(spec, base_dir))
-        _forbidden_globals = {
-            "location", "name", "top", "onload", "document", "window", "self",
-            "frames", "parent", "history", "navigator", "status", "close",
-            "closed", "alert", "confirm", "prompt", "open", "focus", "blur", "origin", "event",
-        }
-        for fn in model_funcs:
-            if fn not in _forbidden_globals:
-                model_js += (
-                    f"if (typeof globalThis !== 'undefined' && "
-                    f"(typeof window === 'undefined' || !('{fn}' in window))) "
-                    f"globalThis.{fn} = {fn};\n"
-                )
+        returns_str = ", ".join(f'"{fn}": {fn}' for fn in model_funcs)
+        if clean_id:
+            model_js = (
+                f"var __tf_model_{clean_id} = (function () {{\n"
+                f"{raw_model_js}\n"
+                f"return {{{returns_str}}};\n"
+                f"}})();\n"
+            )
+        else:
+            model_js = (
+                f"{raw_model_js}\n"
+                f"var __tf_model = {{{returns_str}}};\n"
+            )
+            _forbidden_globals = {
+                "location", "name", "top", "onload", "document", "window", "self",
+                "frames", "parent", "history", "navigator", "status", "close",
+                "closed", "alert", "confirm", "prompt", "open", "focus", "blur", "origin", "event",
+            }
+            for fn in model_funcs:
+                if fn not in _forbidden_globals:
+                    model_js += (
+                        f"if (typeof globalThis !== 'undefined' && "
+                        f"(typeof window === 'undefined' || !('{fn}' in window))) "
+                        f"globalThis.{fn} = {fn};\n"
+                    )
 
     # 1. Validate params.
     raw_params = spec.get("params", [])
@@ -1398,7 +1420,14 @@ def render_interactive_fragment(
     else:
         controls_html = ""
 
-    bindings_js = f'__tf.register("{fig_id}", {bindings_json}, {params_json});'
+    if clean_id and model_funcs:
+        model_arg = f', typeof __tf_model_{clean_id} !== "undefined" ? __tf_model_{clean_id} : {{}}'
+    elif model_funcs:
+        model_arg = ', typeof __tf_model !== "undefined" ? __tf_model : {}'
+    else:
+        model_arg = ""
+
+    bindings_js = f'__tf.register("{fig_id}", {bindings_json}, {params_json}{model_arg});'
 
     return {
         "svg": svg_inline,
@@ -1491,6 +1520,7 @@ figure svg {{ max-width: 100%; height: auto; display: block; }}
 <script>
 {frag['model_js']}var __TF_BINDINGS = {frag['bindings_json']};
 var __TF_PARAMS = {frag['params_json']};
+var __TF_MODEL = typeof __tf_model !== "undefined" ? __tf_model : {{}};
 {runtime_js()}
 {frag['bindings_js']}
 </script>

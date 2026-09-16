@@ -1,13 +1,18 @@
 """Tests for T6: techfig explain page assembler."""
 import json
 import re
+import shutil
 import subprocess
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
+import pytest
+
 from techfig.engines.explain import assemble_explainer_page, render_explainer
 from techfig.engines.interactive_svg import render_interactive_fragment, runtime_js
+
+NODE = shutil.which("node")
 
 
 class FigureCounter(HTMLParser):
@@ -239,3 +244,69 @@ title: CLI Test
         assert res.returncode == 0, res.stderr
         assert out_html.exists()
         assert "<figure" in out_html.read_text(encoding="utf-8")
+
+
+class TestMultiFigureModels:
+    @pytest.mark.skipif(NODE is None, reason="node not available")
+    def test_multi_interactive_figure_model_namespace_collision(self, tmp_path):
+        md = """---
+title: Multi-Model Explainer
+---
+
+```techfig interactive
+{
+  "model": {"source": "def f(a):\\n    return a * 10"},
+  "params": [{"name": "a", "min": 1, "max": 10, "step": 1, "value": 2}],
+  "canvas": {"width": 300, "height": 200},
+  "elements": [{"type": "readout", "id": "r1", "x": 50, "y": 50, "expr": "{{f(a)}}"}]
+}
+```
+
+```techfig interactive
+{
+  "model": {"source": "def f(a):\\n    return a * 1000"},
+  "params": [{"name": "a", "min": 1, "max": 10, "step": 1, "value": 2}],
+  "canvas": {"width": 300, "height": 200},
+  "elements": [{"type": "readout", "id": "r2", "x": 50, "y": 50, "expr": "{{f(a)}}"}]
+}
+```
+"""
+        html = render_explainer(md)
+        script_match = re.search(r"<script>(.*?)</script>", html, re.DOTALL)
+        assert script_match is not None, "Script block not found in explainer"
+        script_content = script_match.group(1)
+
+        harness = f"""
+function makeEl() {{
+  var valNode = {{ textContent: "" }};
+  return {{
+    querySelector: function(sel) {{ return valNode; }},
+    valNode: valNode
+  }};
+}}
+var fig1_el = makeEl();
+var fig2_el = makeEl();
+global.window = {{ __tf: null }};
+global.document = {{
+  querySelectorAll: function (sel) {{ return []; }},
+  getElementById: function (id) {{
+    if (id === "fig1-r1" || id === "r1") return fig1_el;
+    if (id === "fig2-r2" || id === "r2") return fig2_el;
+    return null;
+  }}
+}};
+{script_content}
+console.log(JSON.stringify({{
+  fig1: fig1_el.valNode.textContent,
+  fig2: fig2_el.valNode.textContent
+}}));
+"""
+        harness_file = tmp_path / "multi_model_harness.js"
+        harness_file.write_text(harness, encoding="utf-8")
+        res = subprocess.run([NODE, str(harness_file)], capture_output=True, text=True)
+        assert res.returncode == 0, f"Node run failed: {res.stderr}"
+        results = json.loads(res.stdout)
+        assert float(results["fig1"]) == 20
+        assert float(results["fig2"]) == 2000
+        assert results["fig1"] != results["fig2"]
+
