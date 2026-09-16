@@ -1033,7 +1033,6 @@ _RUNTIME_JS = r"""(function () {
       var name = controls[i].getAttribute("data-name");
       var v = controls[i].tagName === "SELECT" ? controls[i].value : parseFloat(controls[i].value);
       fig.params[name] = v;
-      if (typeof globalThis !== "undefined") globalThis[name] = v;
       var outSel = fig.id
         ? 'output.tf-value[data-fig="' + fig.id + '"][data-name="' + name + '"]'
         : 'output.tf-value[data-name="' + name + '"]';
@@ -1083,9 +1082,18 @@ _RUNTIME_JS = r"""(function () {
         }
       };
     }
+    var _forbidden = {
+      location: 1, name: 1, top: 1, onload: 1, document: 1,
+      window: 1, self: 1, frames: 1, parent: 1, history: 1,
+      navigator: 1, status: 1, close: 1, closed: 1, alert: 1,
+      confirm: 1, prompt: 1, open: 1, focus: 1, blur: 1,
+      origin: 1, event: 1
+    };
     for (var p in fig.params) {
       if (typeof globalThis !== "undefined" && typeof globalThis[p] === "undefined") {
-        globalThis[p] = fig.params[p];
+        if (!_forbidden[p] && (typeof window === "undefined" || !(p in window))) {
+          globalThis[p] = fig.params[p];
+        }
       }
     }
     var sel = figId ? '.tf-param[data-fig="' + figId + '"]' : '.tf-param';
@@ -1218,8 +1226,18 @@ def render_interactive_fragment(
         model_source = load_model_source(spec["model"], base_dir)
         model_js = module_to_js(model_source) + "\n"
         model_funcs = sorted(load_model(spec, base_dir))
+        _forbidden_globals = {
+            "location", "name", "top", "onload", "document", "window", "self",
+            "frames", "parent", "history", "navigator", "status", "close",
+            "closed", "alert", "confirm", "prompt", "open", "focus", "blur", "origin", "event",
+        }
         for fn in model_funcs:
-            model_js += f"if (typeof globalThis !== 'undefined') globalThis.{fn} = {fn};\n"
+            if fn not in _forbidden_globals:
+                model_js += (
+                    f"if (typeof globalThis !== 'undefined' && "
+                    f"(typeof window === 'undefined' || !('{fn}' in window))) "
+                    f"globalThis.{fn} = {fn};\n"
+                )
 
     # 1. Validate params.
     raw_params = spec.get("params", [])

@@ -230,6 +230,61 @@ class TestNodeRuntime:
         assert abs(out["height"] - safe_eval("2 * d", {"d": 1.5})) < 1e-9
         assert out["d_default"] == 1.5
 
+    def test_param_named_location_does_not_clobber_window(self, tmp_path):
+        spec = {
+            "canvas": {"width": 400, "height": 300},
+            "params": [
+                {"name": "location", "min": 0, "max": 10, "step": 1, "value": 5}
+            ],
+            "elements": [
+                {
+                    "type": "box",
+                    "id": "b1",
+                    "x": 0,
+                    "y": 0,
+                    "w": "{{location * 10}}",
+                    "h": 50,
+                }
+            ],
+        }
+        page = build_widget(tmp_path, spec)
+        harness = (
+            "var initialLocation = { href: 'http://localhost/figure' };\n"
+            "global.window = { __tf: null, location: initialLocation };\n"
+            "global.location = initialLocation;\n"
+            "var mockCtrl = {\n"
+            "  tagName: 'INPUT',\n"
+            "  value: '7',\n"
+            "  getAttribute: function (attr) { return attr === 'data-name' ? 'location' : ''; },\n"
+            "  addEventListener: function () {}\n"
+            "};\n"
+            "global.document = {\n"
+            "  querySelectorAll: function (sel) { return sel.indexOf('.tf-param') !== -1 ? [mockCtrl] : []; },\n"
+            "  getElementById: function () { return null; }\n"
+            "};\n"
+            + self._extract_script(page)
+            + "\nvar __out = {\n"
+            "  window_location_href: global.window.location ? global.window.location.href : null,\n"
+            "  global_location_href: (typeof global.location === 'object' && global.location) ? global.location.href : null,\n"
+            "  global_location_val: global.location,\n"
+            "  param_val: window.__tf.params.location,\n"
+            "  box_w: (function () {\n"
+            "    var b = window.__tf.bindings.filter(function (x) { return x.attr === 'width'; })[0];\n"
+            "    return b ? new Function('location', '__fmt', '__tf_sum', '__tf_d', 'return (' + b.js + ')')(7) : null;\n"
+            "  })()\n"
+            "};\n"
+            "console.log(JSON.stringify(__out));\n"
+        )
+        f = tmp_path / "test_location.js"
+        f.write_text(harness)
+        res = subprocess.run([NODE, str(f)], capture_output=True, text=True)
+        assert res.returncode == 0, res.stderr
+        out = json.loads(res.stdout)
+        assert out["global_location_href"] == "http://localhost/figure"
+        assert out["global_location_val"] != 7
+        assert out["param_val"] == 7
+        assert out["box_w"] == 70
+
 
 class TestCli:
     def test_cli_interactive(self, tmp_path):
