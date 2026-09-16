@@ -34,6 +34,7 @@ Unsupported binding targets raise ``ValueError`` with the element type and
 field named, so spec authors fail fast instead of shipping inert controls.
 """
 import copy
+import html
 import json
 import re
 import tempfile
@@ -341,7 +342,7 @@ def _render_native_plot_svg(
     text_color = colors.get("text", "#000000")
     axis_color = colors.get("text", "#333333")
 
-    parts = [f'<g id="{el_id}" class="tf-plot">']
+    parts = [f'<g id="{html.escape(str(el_id), quote=True)}" class="tf-plot">']
     # Frame rect
     parts.append(
         f'<rect class="tf-plot-frame" x="{_fmt_coord(fx)}" y="{_fmt_coord(fy)}" '
@@ -388,7 +389,7 @@ def _render_native_plot_svg(
             f'<text class="tf-axis-label-x" x="{_fmt_coord(fx + fw / 2)}" '
             f'y="{_fmt_coord(fy + fh + pad_bottom - 4)}" text-anchor="middle" '
             f'font-family="{font_family}" font-size="{_fmt_coord(font_size)}" '
-            f'fill="{text_color}">{xlabel}</text>'
+            f'fill="{text_color}">{html.escape(str(xlabel), quote=True)}</text>'
         )
 
     ylabel = el.get("ylabel") or cel.get("ylabel")
@@ -399,7 +400,7 @@ def _render_native_plot_svg(
             f'<text class="tf-axis-label-y" x="{_fmt_coord(yl_x)}" y="{_fmt_coord(yl_y)}" '
             f'text-anchor="middle" font-family="{font_family}" '
             f'font-size="{_fmt_coord(font_size)}" fill="{text_color}" '
-            f'transform="rotate(-90, {_fmt_coord(yl_x)}, {_fmt_coord(yl_y)})">{ylabel}</text>'
+            f'transform="rotate(-90, {_fmt_coord(yl_x)}, {_fmt_coord(yl_y)})">{html.escape(str(ylabel), quote=True)}</text>'
         )
 
     title = el.get("title") or cel.get("title")
@@ -408,7 +409,7 @@ def _render_native_plot_svg(
             f'<text class="tf-plot-title" x="{_fmt_coord(fx + fw / 2)}" '
             f'y="{_fmt_coord(fy - 6)}" text-anchor="middle" '
             f'font-family="{font_family}" font-size="{_fmt_coord(font_size)}" '
-            f'font-weight="bold" fill="{text_color}">{title}</text>'
+            f'font-weight="bold" fill="{text_color}">{html.escape(str(title), quote=True)}</text>'
         )
 
     caption = el.get("text") or cel.get("text")
@@ -417,7 +418,7 @@ def _render_native_plot_svg(
             f'<text class="tf-plot-caption" x="{_fmt_coord(x)}" '
             f'y="{_fmt_coord(y + h / 2 + font_size)}" text-anchor="middle" '
             f'font-family="{font_family}" font-size="{_fmt_coord(font_size)}" '
-            f'fill="{text_color}">{caption}</text>'
+            f'fill="{text_color}">{html.escape(str(caption), quote=True)}</text>'
         )
 
     # Series paths
@@ -426,11 +427,12 @@ def _render_native_plot_svg(
     for k, s in enumerate(cel_series):
         orig_s = spec_series[k] if k < len(spec_series) else s
         series_path_id = orig_s.get("id") or s.get("id") or f"{el_id}-s{k}"
+        series_path_id = html.escape(str(series_path_id), quote=True)
         color = s.get("color") or orig_s.get("color")
         if color in colors:
             stroke = colors[color]
         elif color:
-            stroke = str(color)
+            stroke = html.escape(str(color), quote=True)
         else:
             stroke = palette[k % len(palette)]
         sw = float(s.get("stroke_width", orig_s.get("stroke_width", 2.0)))
@@ -440,7 +442,7 @@ def _render_native_plot_svg(
         extra_attrs = ""
         dash = s.get("stroke_dash") or orig_s.get("stroke_dash")
         if dash:
-            extra_attrs += f' stroke-dasharray="{dash}"'
+            extra_attrs += f' stroke-dasharray="{html.escape(str(dash), quote=True)}"'
         parts.append(
             f'<path id="{series_path_id}" class="tf-series" d="{initial_d}" '
             f'fill="none" stroke="{stroke}" stroke-width="{_fmt_coord(sw)}"{extra_attrs} />'
@@ -1132,33 +1134,39 @@ def _fmt_num(v: float) -> str:
 
 
 def _control_html(p: Dict[str, Any], fig_id: str = "") -> str:
-    name = p["name"]
-    ctrl_id = f"{fig_id}-p-{name}" if fig_id else f"tf-p-{name}"
-    data_fig = f' data-fig="{fig_id}"' if fig_id else ""
+    name = str(p["name"])
+    esc_name = html.escape(name, quote=True)
+    esc_fig_id = html.escape(fig_id, quote=True) if fig_id else ""
+    ctrl_id = f"{esc_fig_id}-p-{esc_name}" if esc_fig_id else f"tf-p-{esc_name}"
+    data_fig = f' data-fig="{esc_fig_id}"' if esc_fig_id else ""
+    esc_label = html.escape(str(p.get("label", "")), quote=True)
     if p.get("kind") == "state":
         options_html = []
         for opt in p.get("options", []):
             sel = " selected" if opt == p["value"] else ""
-            options_html.append(f'      <option value="{opt}"{sel}>{opt}</option>')
+            esc_opt = html.escape(str(opt), quote=True)
+            options_html.append(f'      <option value="{esc_opt}"{sel}>{esc_opt}</option>')
         opts_str = "\n".join(options_html)
         return (
             f'  <div class="tf-control">\n'
-            f'    <label for="{ctrl_id}">{p["label"]}</label>\n'
-            f'    <select class="tf-param" data-name="{name}"{data_fig} id="{ctrl_id}">\n'
+            f'    <label for="{ctrl_id}">{esc_label}</label>\n'
+            f'    <select class="tf-param" data-name="{esc_name}"{data_fig} id="{ctrl_id}">\n'
             f'{opts_str}\n'
             f'    </select>\n'
             f'  </div>'
         )
     val = _fmt_num(p["value"])
-    out_text = f"{val} {p['unit']}".rstrip()
-    data_unit = f' data-unit="{p["unit"]}"' if p["unit"] else ""
+    unit = str(p["unit"]) if p.get("unit") else ""
+    esc_unit = html.escape(unit, quote=True)
+    out_text = html.escape(f"{val} {unit}".rstrip(), quote=True)
+    data_unit = f' data-unit="{esc_unit}"' if unit else ""
     return (
         f'  <div class="tf-control">\n'
-        f'    <label for="{ctrl_id}">{p["label"]}</label>\n'
-        f'    <input type="range" class="tf-param" data-name="{name}"{data_fig} '
+        f'    <label for="{ctrl_id}">{esc_label}</label>\n'
+        f'    <input type="range" class="tf-param" data-name="{esc_name}"{data_fig} '
         f'id="{ctrl_id}" min="{_fmt_num(p["min"])}" max="{_fmt_num(p["max"])}" '
         f'step="{_fmt_num(p["step"])}" value="{val}">\n'
-        f'    <output class="tf-value" data-name="{name}"{data_fig}{data_unit} '
+        f'    <output class="tf-value" data-name="{esc_name}"{data_fig}{data_unit} '
         f'for="{ctrl_id}">{out_text}</output>\n'
         f"  </div>"
     )
@@ -1362,12 +1370,12 @@ def render_interactive_fragment(
 
     # 7. Assemble fragment components.
     svg_inline = re.sub(r"^<\?xml[^>]*\?>\s*", "", svg_text).strip()
-    bindings_json = json.dumps(entries).replace("</", "<\\/")
-    params_json = json.dumps({c["name"]: c["value"] for c in controls})
+    bindings_json = json.dumps(entries).replace("<", "\\u003c")
+    params_json = json.dumps({c["name"]: c["value"] for c in controls}).replace("<", "\\u003c")
     ctrl_items = [_control_html(c, fig_id=fig_id) for c in controls]
     if ctrl_items:
-        ctrl_id_attr = f' id="{fig_id}-controls"' if fig_id else ""
-        ctrl_fig_attr = f' data-fig="{fig_id}"' if fig_id else ""
+        ctrl_id_attr = f' id="{html.escape(fig_id, quote=True)}-controls"' if fig_id else ""
+        ctrl_fig_attr = f' data-fig="{html.escape(fig_id, quote=True)}"' if fig_id else ""
         controls_html = f'<div class="tf-controls"{ctrl_id_attr}{ctrl_fig_attr}>\n' + "\n".join(ctrl_items) + "\n</div>"
     else:
         controls_html = ""
@@ -1408,13 +1416,13 @@ def create_interactive_svg(
     frag = render_interactive_fragment(spec, fig_id="", base_dir=base_dir)
 
     title_text = title or "Interactive figure"
-    heading = f'<h1 class="tf-title">{title}</h1>\n' if title else ""
+    heading = f'<h1 class="tf-title">{html.escape(title, quote=True)}</h1>\n' if title else ""
     page = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title_text}</title>
+<title>{html.escape(title_text, quote=True)}</title>
 <style>
 :root {{
 {_css_vars(spec)}

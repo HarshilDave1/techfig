@@ -20,6 +20,7 @@ Front-matter and Reference Parsing:
   No remote scripts or external CDNs are referenced.
 """
 import copy
+import html
 import json
 import re
 import tempfile
@@ -275,7 +276,7 @@ def render_explainer(
             spec = json.loads(raw_body)
             spec_base = str(base_path)
 
-        caption_html = f"\n<figcaption>{caption}</figcaption>" if caption else ""
+        caption_html = f"\n<figcaption>{html.escape(caption, quote=True)}</figcaption>" if caption else ""
 
         if is_interactive:
             frag = render_interactive_fragment(spec, fig_id=fig_id, base_dir=spec_base)
@@ -325,13 +326,13 @@ def render_explainer(
     style_preset = meta.get("style", "nature")
 
     status_badge = (
-        f' <span class="tf-status tf-status-{doc_status.lower()}">{doc_status}</span>'
+        f' <span class="tf-status tf-status-{html.escape(str(doc_status).lower(), quote=True)}">{html.escape(str(doc_status), quote=True)}</span>'
         if doc_status
         else ""
     )
-    header_html = f'<h1 class="tf-title">{title}{status_badge}</h1>\n'
+    header_html = f'<h1 class="tf-title">{html.escape(str(title), quote=True)}{status_badge}</h1>\n'
     if subtitle:
-        header_html += f'<p class="tf-subtitle">{subtitle}</p>\n'
+        header_html += f'<p class="tf-subtitle">{html.escape(str(subtitle), quote=True)}</p>\n'
 
     # References section
     if all_refs:
@@ -350,15 +351,29 @@ def render_explainer(
             doi = r.get("doi")
             url = r.get("url")
             text = r.get("text")
-            href = f"https://doi.org/{doi}" if (doi and not doi.startswith("http")) else (doi or url)
-            if href:
-                if text and text != href:
-                    item_content = f'{text} &mdash; <a href="{href}">{href}</a>'
+            href = None
+            if doi:
+                doi_str = str(doi).strip()
+                if doi_str.startswith("http://") or doi_str.startswith("https://"):
+                    href = doi_str
                 else:
-                    item_content = f'<a href="{href}">{href}</a>'
+                    href = f"https://doi.org/{doi_str}"
+            elif url:
+                url_str = str(url).strip()
+                if url_str.startswith("http://") or url_str.startswith("https://"):
+                    href = url_str
+
+            n_esc = html.escape(str(n), quote=True)
+            if href:
+                href_esc = html.escape(href, quote=True)
+                if text and str(text) != href:
+                    text_esc = html.escape(str(text), quote=True)
+                    item_content = f'{text_esc} &mdash; <a href="{href_esc}">{href_esc}</a>'
+                else:
+                    item_content = f'<a href="{href_esc}">{href_esc}</a>'
             else:
-                item_content = text or ""
-            ref_items.append(f'  <li id="ref-{n}">{item_content}</li>')
+                item_content = html.escape(str(text), quote=True) if text else ""
+            ref_items.append(f'  <li id="ref-{n_esc}">{item_content}</li>')
 
         references_html = (
             '<section class="tf-references">\n<h2>References</h2>\n<ol class="tf-refs">\n'
@@ -389,7 +404,7 @@ def render_explainer(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title}</title>
+<title>{html.escape(str(title), quote=True)}</title>
 <style>
 :root {{
 {_css_vars(style_preset)}
