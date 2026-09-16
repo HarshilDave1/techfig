@@ -269,7 +269,20 @@ def render_explainer(
 
         if raw_body.startswith("file:"):
             rel_file = raw_body.split("file:", 1)[1].strip()
-            file_path = (base_path / rel_file).resolve()
+            target = Path(rel_file)
+            file_path = (base_path / target).resolve() if not target.is_absolute() else target.resolve()
+            try:
+                is_rel = file_path.is_relative_to(base_path)
+            except AttributeError:
+                try:
+                    file_path.relative_to(base_path)
+                    is_rel = True
+                except ValueError:
+                    is_rel = False
+            if not is_rel:
+                raise ValueError(f"Figure file path '{rel_file}' is outside base directory '{base_path}'")
+            if not file_path.is_file():
+                raise FileNotFoundError(f"Figure spec file not found: {file_path}")
             spec = json.loads(file_path.read_text(encoding="utf-8"))
             spec_base = str(file_path.parent)
         else:

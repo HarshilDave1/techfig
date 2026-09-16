@@ -125,11 +125,18 @@ techfig critique --html widget.html
 TechFig diagram specs support parametric reactive bindings, restricted-Python mathematical models, and interactive HTML explainer generation:
 
 - **`params`**: Top-level parameter list with continuous ranges (`min`, `max`, `step`, `value`, `label`, `unit`) or discrete state toggles (`kind: "state"`, `options: [...]`).
-- **`{{expr}}`**: Expressions bound to SVG geometry, text, or styling. Evaluated safely with zero external runtime dependencies in both Python and client-side JavaScript.
-- **`model`**: Python model module (`{"file": "model.py"}` or `{"source": "..."}`) restricted to a safe AST subset (pure math, arithmetic, loops, branches, array building). Model functions are exposed by name to `{{expr}}` bindings and transpiled to vanilla JS. Cross-checked numerically with Node via `techfig verify-model`.
+- **`{{expr}}`**: Expressions bound to SVG geometry, text, or styling, evaluated in both Python and client-side JavaScript.
+- **`model`**: Python model module (`{"file": "model.py"}` or `{"source": "..."}`) exposing functions by name to `{{expr}}` bindings and transpiled to vanilla JS. Cross-checked numerically with Node via `techfig verify-model`.
 - **`readout`**: Element displaying live formatted numeric values with optional boolean verdict labels and styling (`tf-verdict-true` / `tf-verdict-false`).
 - **`state` & `visible_when`**: Discrete state parameters rendered as `<select>` controls. Any element or connection can specify `"visible_when": "{{expr}}"` to conditionally toggle visibility.
 - **Static outputs unchanged**: Specs with parametric bindings continue to render statically to SVG via `techfig reconstruct` evaluated at declared default parameter values.
+
+### Execution Model and Security
+
+- **Restricted AST Subset**: Expressions and model code are checked against a strict AST node allow-list. Only basic arithmetic, whitelisted `math` functions, assignments, bounded loops (`MAX_LOOP_ITERATIONS = 100,000`), and conditionals are allowed. Dunders (`__...`), arbitrary attribute access, imports, annotations, and unsupported builtins are rejected. Sequence allocations and power operations are size-bounded.
+- **Path Confinement**: Referenced model and figure files (`model.file`, explain `file:`) are strictly confined to the spec directory (`resolved.is_relative_to(base)`); directory traversal (`..`) and absolute path escapes outside the spec directory are rejected.
+- **Residual Risks**: Execution does not enforce hard wall-clock process timeouts or OS-level container isolation. Author-supplied model code runs in-process in the Python interpreter. Consequently, diagram specs and models should be treated as executable code and loaded only from trusted sources.
+- **Math Rendering Note**: The HTML explainer generator uses a built-in lightweight markdown formatter when the optional `markdown` package is not installed and does not bundle a client-side math renderer (such as KaTeX or MathJax). LaTeX expressions (`$...$` and `$$...$$`) in explainer markdown are currently rendered as raw text.
 
 See `examples/arc_thin_film/` for a complete working example of a single-layer anti-reflective coating model, parametric cross-section, live reflectance plot, and explainer page.
 

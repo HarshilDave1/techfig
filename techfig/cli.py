@@ -480,13 +480,13 @@ def main():
             sys.exit(1)
         source = load_model_source(spec["model"], str(Path(args.input).parent))
         param_ranges = {
-            p["name"]: (float(p["min"]), float(p["max"]))
+            p["name"]: (p["min"], p["max"])
             for p in spec.get("params", [])
             if isinstance(p, dict) and "min" in p and "max" in p
         }
         report = verify_model(source, param_ranges, n_samples=args.samples)
         print(json.dumps(report, indent=2))
-        if report.get("ok") is False:
+        if not report.get("ok"):
             sys.exit(1)
 
     elif args.command == "explain":

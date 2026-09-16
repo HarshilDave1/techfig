@@ -903,6 +903,49 @@ def module_to_js(source: str) -> str:
 # ---- numeric verification against Node --------------------------------------
 
 
+def _is_numeric_val(v: Any) -> bool:
+    """Return True if v is a numeric scalar (int/float, not bool) or a list/tuple thereof."""
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return True
+    if isinstance(v, (list, tuple)):
+        return all(_is_numeric_val(x) for x in v)
+    return False
+
+
+def _compare_numeric_vals(
+    py_val: Any, js_val: Any, atol: float, rtol: float
+) -> Tuple[Optional[float], Optional[str]]:
+    """Recursively compare py_val and js_val for numeric/list parity.
+
+    Returns (abs_err, error_msg). If matching, error_msg is None.
+    If mismatch, error_msg is non-None and abs_err is the error (if numeric).
+    """
+    if (
+        isinstance(py_val, (int, float))
+        and not isinstance(py_val, bool)
+        and isinstance(js_val, (int, float))
+        and not isinstance(js_val, bool)
+    ):
+        err = abs(float(py_val) - float(js_val))
+        if err > atol + rtol * abs(float(py_val)):
+            return err, f"abs_err {err} exceeds tolerance"
+        return err, None
+
+    if isinstance(py_val, (list, tuple)) and isinstance(js_val, (list, tuple)):
+        if len(py_val) != len(js_val):
+            return None, f"list length mismatch: py={len(py_val)} js={len(js_val)}"
+        max_err: float = 0.0
+        for i, (p, j) in enumerate(zip(py_val, js_val)):
+            elem_err, elem_msg = _compare_numeric_vals(p, j, atol, rtol)
+            if elem_msg is not None:
+                return elem_err, f"element [{i}]: {elem_msg}"
+            if elem_err is not None:
+                max_err = max(max_err, elem_err)
+        return max_err, None
+
+    return None, f"non-numeric comparison: py={py_val!r} js={js_val!r}"
+
+
 def verify_model(
     source: str,
     param_ranges: Dict[str, Tuple[float, float]],
@@ -918,27 +961,71 @@ def verify_model(
     in Node (``node -e`` harness reading the sample points from stdin), and
     compared with ``atol + rtol * |python|``.
 
-    Returns ``{ok, n_checked, max_abs_err, mismatches}``; ``ok`` is ``None``
-    with ``skipped: "node not found"`` when Node is not installed.
+    Returns ``{ok, n_checked, max_abs_err, mismatches, skipped_functions}``;
+    ``ok`` is ``None`` with ``skipped: "node not found"`` when Node is not installed.
     """
     funcs = validate_model_source(source)
     node = shutil.which("node")
     if node is None:
         return {"ok": None, "skipped": "node not found"}
 
+    try:
+        py_fns = exec_model_source(source)
+    except Exception:
+        py_fns = {}
+
     rng = random.Random(seed)
-    points: List[Dict[str, Any]] = []
+    skipped_functions: List[Dict[str, str]] = []
+    checkable_funcs: List[Tuple[Any, List[str]]] = []
+
     for fn in funcs:
         args = [a.arg for a in fn.args.args]
-        if not args or not all(a in param_ranges for a in args):
+        missing = [a for a in args if a not in param_ranges]
+        if missing or not args:
+            skipped_functions.append({"name": fn.name, "reason": "unlisted argument"})
             continue
+
+        if fn.name in py_fns:
+            mid_args = []
+            for a in args:
+                lo, hi = param_ranges[a]
+                if isinstance(lo, int) and isinstance(hi, int):
+                    mid_args.append((lo + hi) // 2)
+                else:
+                    mid_args.append((lo + hi) / 2.0)
+            try:
+                test_val = py_fns[fn.name](*mid_args)
+                if not _is_numeric_val(test_val):
+                    skipped_functions.append({"name": fn.name, "reason": "non-numeric return"})
+                    continue
+            except Exception:
+                pass
+
+        checkable_funcs.append((fn, args))
+
+    points: List[Dict[str, Any]] = []
+    for fn, args in checkable_funcs:
         for _ in range(n_samples):
+            pt_args = []
+            for a in args:
+                lo, hi = param_ranges[a]
+                if isinstance(lo, int) and isinstance(hi, int):
+                    pt_args.append(rng.randint(lo, hi))
+                else:
+                    pt_args.append(rng.uniform(lo, hi))
             points.append({
                 "fn": fn.name,
-                "args": [rng.uniform(*param_ranges[a]) for a in args],
+                "args": pt_args,
             })
+
     if not points:
-        return {"ok": True, "n_checked": 0, "max_abs_err": 0.0, "mismatches": []}
+        return {
+            "ok": False,
+            "n_checked": 0,
+            "max_abs_err": 0.0,
+            "mismatches": [],
+            "skipped_functions": skipped_functions,
+        }
 
     names = sorted({p["fn"] for p in points})
     harness = (
@@ -964,7 +1051,6 @@ def verify_model(
         raise RuntimeError(f"node verification harness failed:\n{res.stderr}")
     js_out = json.loads(res.stdout)
 
-    py_fns = exec_model_source(source)
     mismatches: List[Dict[str, Any]] = []
     n_checked = 0
     max_abs_err = 0.0
@@ -984,24 +1070,28 @@ def verify_model(
                 "py": py_val, "error": f"js: {js_val['__err']}",
             })
             continue
-        if not (
-            isinstance(py_val, (int, float)) and isinstance(js_val, (int, float))
-        ):
-            mismatches.append({
-                "fn": point["fn"], "args": point["args"],
-                "error": f"non-numeric comparison: py={py_val!r} js={js_val!r}",
-            })
+
+        err, err_msg = _compare_numeric_vals(py_val, js_val, atol, rtol)
+        if err_msg is not None:
+            entry: Dict[str, Any] = {
+                "fn": point["fn"],
+                "args": point["args"],
+                "py": py_val,
+                "js": js_val,
+            }
+            if err is not None:
+                entry["abs_err"] = err
+            else:
+                entry["error"] = err_msg
+            mismatches.append(entry)
             continue
-        err = abs(float(py_val) - float(js_val))
-        max_abs_err = max(max_abs_err, err)
-        if err > atol + rtol * abs(float(py_val)):
-            mismatches.append({
-                "fn": point["fn"], "args": point["args"],
-                "py": py_val, "js": js_val, "abs_err": err,
-            })
+        if err is not None:
+            max_abs_err = max(max_abs_err, err)
+
     return {
-        "ok": not mismatches,
+        "ok": (n_checked > 0) and not mismatches,
         "n_checked": n_checked,
         "max_abs_err": max_abs_err,
         "mismatches": mismatches,
+        "skipped_functions": skipped_functions,
     }

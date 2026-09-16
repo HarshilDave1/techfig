@@ -300,9 +300,21 @@ def lint_html(
                         }
 
                         const textEls = Array.from(document.querySelectorAll('text')).filter(t => {
-                            if (t.style && t.style.display === 'none') return false;
-                            const p = t.parentElement;
-                            if (p && p.style && p.style.display === 'none') return false;
+                            let curr = t;
+                            while (curr && curr !== document.body && curr !== document) {
+                                if (curr.style && (curr.style.display === 'none' || curr.style.visibility === 'hidden')) return false;
+                                if (curr.getAttribute) {
+                                    const d = curr.getAttribute('display');
+                                    if (d === 'none') return false;
+                                    const v = curr.getAttribute('visibility');
+                                    if (v === 'hidden') return false;
+                                }
+                                curr = curr.parentElement;
+                            }
+                            try {
+                                const cs = window.getComputedStyle(t);
+                                if (cs && (cs.display === 'none' || cs.visibility === 'hidden')) return false;
+                            } catch (e) {}
                             const txt = (t.textContent || '').trim();
                             return txt.length > 0;
                         });
@@ -319,12 +331,13 @@ def lint_html(
                             try {
                                 box = getBox(t);
                             } catch (e) {}
-                            return {id: ident, box: box, el: t};
+                            return {id: ident, box: box, el: t, svg: t.ownerSVGElement || t.closest('svg')};
                         });
 
                         const overlappingPairs = [];
                         for (let i = 0; i < items.length; i++) {
                             for (let j = i + 1; j < items.length; j++) {
+                                if (items[i].svg !== items[j].svg) continue;
                                 const b1 = items[i].box;
                                 const b2 = items[j].box;
                                 const xOverlap = Math.max(0, Math.min(b1.x + b1.width, b2.x + b2.width) - Math.max(b1.x, b2.x));

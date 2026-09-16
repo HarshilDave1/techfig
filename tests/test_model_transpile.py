@@ -296,6 +296,25 @@ class TestLoadModel:
         with pytest.raises(FileNotFoundError, match="nope.py"):
             load_model_source({"file": "nope.py"}, base_dir=str(tmp_path))
 
+    def test_load_file_path_confinement_traversal(self, tmp_path):
+        base = tmp_path / "spec_dir"
+        base.mkdir()
+        secret = tmp_path / "secret.txt"
+        secret.write_text("secret_data", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="outside base directory"):
+            load_model_source({"file": "../secret.txt"}, base_dir=str(base))
+        with pytest.raises(ValueError, match="outside base directory"):
+            load_model_source({"file": str(secret)}, base_dir=str(base))
+        with pytest.raises(ValueError, match="outside base directory"):
+            load_model_source({"file": "../../../../etc/hostname"}, base_dir=str(base))
+
+        # Legitimate file inside base_dir works
+        valid_model = base / "valid_model.py"
+        valid_model.write_text(AIRY, encoding="utf-8")
+        src = load_model_source({"file": "valid_model.py"}, base_dir=str(base))
+        assert "def R" in src
+
     def test_no_model_returns_empty(self):
         assert load_model({}) == {}
 
@@ -495,8 +514,50 @@ class TestVerifyModel:
     def test_no_checkable_functions(self):
         src = "def f(a):\n    return a\n"
         report = verify_model(src, {"x": (0.0, 1.0)}, n_samples=5)
-        assert report["ok"] is True
+        assert report["ok"] is False
         assert report["n_checked"] == 0
+        assert report["skipped_functions"] == [{"name": "f", "reason": "unlisted argument"}]
+
+    @pytest.mark.skipif(NODE is None, reason="node not available")
+    def test_non_numeric_return_skipped(self):
+        src = "def str_fn(x):\n    return 'hello'\n"
+        report = verify_model(src, {"x": (0.0, 1.0)}, n_samples=5)
+        assert report["ok"] is False
+        assert report["n_checked"] == 0
+        assert report["skipped_functions"] == [{"name": "str_fn", "reason": "non-numeric return"}]
+
+    @pytest.mark.skipif(NODE is None, reason="node not available")
+    def test_list_returning_function_verified(self):
+        src = """def sweep_sim(a, b):
+    return [[a * 1.0, a * 2.0], [b + 1.0, b + 2.0]]
+"""
+        report = verify_model(src, {"a": (1.0, 5.0), "b": (10.0, 20.0)}, n_samples=10)
+        assert report["ok"] is True
+        assert report["n_checked"] == 10
+        assert report["max_abs_err"] < 1e-9
+        assert report["mismatches"] == []
+        assert report["skipped_functions"] == []
+
+    @pytest.mark.skipif(NODE is None, reason="node not available")
+    def test_cli_verify_model_non_zero_exit_on_n_checked_zero(self, tmp_path):
+        spec = {
+            "model": {"source": "def f(a):\n    return a\n"},
+            "params": [{"name": "x", "min": 0, "max": 1}],
+        }
+        spec_path = tmp_path / "spec.json"
+        spec_path.write_text(json.dumps(spec), encoding="utf-8")
+
+        res = subprocess.run(
+            [sys.executable, "-m", "techfig.cli", "verify-model", str(spec_path)],
+            capture_output=True,
+            text=True,
+        )
+        assert res.returncode != 0
+        data = json.loads(res.stdout[res.stdout.index("{"):])
+        assert data["ok"] is False
+        assert data["n_checked"] == 0
+        assert len(data["skipped_functions"]) == 1
+
 
 
 @pytest.mark.skipif(NODE is None, reason="node not available")

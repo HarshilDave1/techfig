@@ -342,4 +342,33 @@ Caption: A static figure testing visible_when.
         assert "VISIBLE_ALWAYS" in html
         assert "HIDDEN_SECRET" not in html
 
+    def test_explain_file_path_confinement_traversal(self, tmp_path):
+        """Figure file: paths must be confined to the explainer base directory."""
+        spec_dir = tmp_path / "specs"
+        spec_dir.mkdir()
+        secret = tmp_path / "secret.json"
+        secret.write_text('{"canvas": {"width": 100, "height": 100}, "elements": []}', encoding="utf-8")
+
+        md_content_rel = """# Traversal Test
+```techfig
+file: ../secret.json
+```
+"""
+        md_file_rel = spec_dir / "explainer_rel.md"
+        md_file_rel.write_text(md_content_rel, encoding="utf-8")
+
+        with pytest.raises(ValueError, match="outside base directory"):
+            assemble_explainer_page(md_file_rel, spec_dir / "out1.html")
+
+        md_content_abs = f"""# Traversal Test
+```techfig
+file: {secret}
+```
+"""
+        md_file_abs = spec_dir / "explainer_abs.md"
+        md_file_abs.write_text(md_content_abs, encoding="utf-8")
+
+        with pytest.raises(ValueError, match="outside base directory"):
+            assemble_explainer_page(md_file_abs, spec_dir / "out2.html")
+
 

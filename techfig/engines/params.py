@@ -509,9 +509,26 @@ def load_model_source(model: Dict[str, Any], base_dir: str | None = None) -> str
             raise ValueError("'model.source' must be a non-empty string")
         return model["source"]
     if has_file:
-        path = Path(model["file"])
-        if not path.is_absolute() and base_dir:
-            path = Path(base_dir) / path
+        file_val = model["file"]
+        if not isinstance(file_val, str) or not file_val.strip():
+            raise ValueError("'model.file' must be a non-empty string")
+        target = Path(file_val)
+        if base_dir:
+            base = Path(base_dir).resolve()
+            resolved = (base / target).resolve() if not target.is_absolute() else target.resolve()
+            try:
+                is_rel = resolved.is_relative_to(base)
+            except AttributeError:
+                try:
+                    resolved.relative_to(base)
+                    is_rel = True
+                except ValueError:
+                    is_rel = False
+            if not is_rel:
+                raise ValueError(f"Model file '{file_val}' is outside base directory '{base}'")
+            path = resolved
+        else:
+            path = target.resolve()
         if not path.is_file():
             raise FileNotFoundError(f"Model file not found: {path}")
         return path.read_text(encoding="utf-8")

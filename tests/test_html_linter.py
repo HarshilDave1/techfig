@@ -223,3 +223,78 @@ def test_cli_critique_html(temp_dir):
     assert data["ok"] is True
     assert "dead" in data["inert_controls"]
     assert "score" in data
+
+
+@skip_without_playwright
+def test_multi_figure_identical_labels_no_cross_figure_overlap(temp_dir):
+    """Two figures on the same page with identical labels must not report cross-figure overlaps."""
+    page_html = """<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+  <div id="fig1">
+    <svg width="400" height="200">
+      <text id="fig1-title" x="50" y="50">Diagram Title</text>
+      <text id="fig1-axis" x="50" y="100">Wavelength (nm)</text>
+    </svg>
+  </div>
+  <div id="fig2">
+    <svg width="400" height="200">
+      <text id="fig2-title" x="50" y="50">Diagram Title</text>
+      <text id="fig2-axis" x="50" y="100">Wavelength (nm)</text>
+    </svg>
+  </div>
+</body>
+</html>"""
+    html_file = temp_dir / "two_figures.html"
+    html_file.write_text(page_html, encoding="utf-8")
+
+    report = lint_html(str(html_file))
+    assert report["ok"] is True
+    assert report["score"] == 1.0
+    all_overlaps = [p for pairs in report["text_overlaps"].values() for p in pairs]
+    assert len(all_overlaps) == 0
+
+
+@skip_without_playwright
+def test_deeply_nested_hidden_element_not_flagged(temp_dir):
+    """Text nested deeper than 1 parent inside a display:none group must not count towards overlaps."""
+    page_html = """<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+  <svg width="400" height="200">
+    <text id="visible_txt" x="50" y="50">Visible Text</text>
+    <g style="display: none">
+      <g>
+        <g>
+          <text id="deep_hidden_txt" x="50" y="50">Visible Text</text>
+        </g>
+      </g>
+    </g>
+  </svg>
+</body>
+</html>"""
+    html_file = temp_dir / "deep_hidden.html"
+    html_file.write_text(page_html, encoding="utf-8")
+
+    report = lint_html(str(html_file))
+    assert report["ok"] is True
+    all_overlaps = [p for pairs in report["text_overlaps"].values() for p in pairs]
+    assert len(all_overlaps) == 0
+
+
+@skip_without_playwright
+def test_shipped_explainer_clean_score():
+    """Shipped arc_thin_film explainer.html should have 0 overlap pairs and clean score."""
+    repo_root = Path(__file__).resolve().parent.parent
+    explainer_html = repo_root / "examples" / "arc_thin_film" / "explainer.html"
+    assert explainer_html.is_file()
+
+    report = lint_html(str(explainer_html))
+    assert report["ok"] is True
+    all_overlaps = [p for pairs in report["text_overlaps"].values() for p in pairs]
+    # Zero within-figure or cross-figure overlaps
+    assert len(all_overlaps) == 0
+    assert report["score"] == 1.0
+

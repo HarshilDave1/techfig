@@ -35,6 +35,11 @@ def test_arc_thin_film_example(tmp_path):
     # If node is present, verify numerical cross-check succeeds; if absent, ok is None (skipped)
     assert report.get("ok") in (True, None)
     assert report.get("mismatches") == []
+    if report.get("ok") is True:
+        assert report["n_checked"] > 0
+        skipped = {s["name"]: s["reason"] for s in report.get("skipped_functions", [])}
+        assert "sweep" in skipped and skipped["sweep"] == "unlisted argument"
+        assert "R" in skipped and skipped["R"] == "unlisted argument"
 
     # Also cross-check R across its physical parameter ranges
     r_ranges = {
@@ -49,6 +54,22 @@ def test_arc_thin_film_example(tmp_path):
     if r_report.get("ok") is True:
         assert r_report["n_checked"] > 0
         assert r_report["max_abs_err"] < 1e-9
+
+    # Cross-check sweep (the plot model) across its parameter ranges
+    sweep_ranges = {
+        "n1": (1.2, 2.4),
+        "d": (50.0, 200.0),
+        "lam_min": (400.0, 400.0),
+        "lam_max": (800.0, 800.0),
+        "n": (10, 50),
+    }
+    sweep_report = verify_model(source, sweep_ranges)
+    assert sweep_report.get("ok") in (True, None)
+    if sweep_report.get("ok") is True:
+        assert sweep_report["n_checked"] > 0
+        assert sweep_report["max_abs_err"] < 1e-9
+        assert sweep_report.get("mismatches") == []
+
 
     # 2. static SVG > 2 KB
     out_svg = tmp_path / "diagram.svg"
