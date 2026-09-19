@@ -22,10 +22,49 @@ class LintReport:
         return len(self.alignment_issues) + len(self.grid_issues) + len(self.overlap_issues)
 
 
+# Element types that represent a physical, movable shape. This is the single
+# whitelist the geometry linter and the action space both use; keep it in
+# lockstep with the DIAGRAM_SCHEMA element `type` enum
+# (techfig/engines/sketch_interpreter.py).
+SHAPE_TYPES = frozenset({"box", "circle", "diamond", "ellipse", "triangle"})
+
+# Every element type the DIAGRAM_SCHEMA enum allows. A type outside this set is
+# a typo or a novel type the linter cannot reason about — such elements are
+# silently skipped by bbox/overlap logic, which must never be mistaken for a
+# clean layout.
+DIAGRAM_ELEMENT_TYPES = frozenset({
+    "box", "circle", "diamond", "ellipse", "triangle",
+    "text", "textblock", "line", "arrow", "path", "polygon", "pen",
+    "compound", "image", "callout", "legend", "plot", "readout",
+})
+
+# Valid DIAGRAM_SCHEMA types that carry no movable shape bbox.
+NON_SHAPE_TYPES = DIAGRAM_ELEMENT_TYPES - SHAPE_TYPES
+
+
 def extract_shapes(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Return all elements that represent physical shapes."""
-    types = {"box", "circle", "diamond", "ellipse", "triangle"}
-    return [el for el in spec.get("elements", []) if el.get("type") in types]
+    return [el for el in spec.get("elements", []) if el.get("type") in SHAPE_TYPES]
+
+
+def unsupported_elements(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Elements whose ``type`` is neither a shape nor a known DIAGRAM_SCHEMA type.
+
+    These are the elements that silently fall out of the shape whitelist: a
+    typo (``"boxx"``), a novel type (``"hexagon"``), or a missing ``type``.
+    Callers use this to turn "zero shapes found" from a silent no-op into an
+    explicit, reported condition.
+
+    Returns a deterministic list of ``{"el_index": int, "type": Any}``.
+    """
+    out: List[Dict[str, Any]] = []
+    for idx, el in enumerate(spec.get("elements", [])):
+        if not isinstance(el, dict):
+            continue
+        t = el.get("type")
+        if t not in SHAPE_TYPES and t not in NON_SHAPE_TYPES:
+            out.append({"el_index": idx, "type": t})
+    return out
 
 
 def _is_numeric(val: Any) -> bool:
