@@ -141,8 +141,11 @@ def enumerate_actions(
     Each action is a dict:
       {"shape_id": <str>, "dx": <float>, "dy": <float>, "el_index": <int>}
 
-    Moves that would push any part of the resulting shape bounding box outside
-    the canvas rect (0, 0, width, height) are excluded when canvas is present.
+    A move is excluded when it would push a shape that is currently inside the
+    canvas rect OUT of it.  The rect is CENTRED on the origin —
+    ``(-w/2, -h/2)..(w/2, h/2)`` — because techfig's coordinate origin is the
+    canvas centre, not its top-left corner.  Shapes already outside the declared
+    rect (the engine grows the canvas to fit content) stay movable.
 
     ``steps`` selects coarse-first scaled moves: pass a sequence of magnitudes
     (e.g. ``DEFAULT_MOVE_STEPS = (80, 40, 20)``) and each magnitude contributes
@@ -196,11 +199,36 @@ def enumerate_actions(
         for dx, dy in moves:
             if canvas_bounds is not None:
                 cw, ch = canvas_bounds
+                # techfig's coordinate origin is the CENTER of the canvas
+                # (sketch_interpreter: "Origin (0,0) is at the CENTER of the
+                # canvas"), so the drawable rect is (-w/2,-h/2)..(w/2,h/2), NOT
+                # (0,0)..(w,h). Using a top-left rect rejected every move for a
+                # legitimately-centred figure (all shapes at negative x/y) and
+                # silently yielded zero candidates.
+                half_w = cw / 2.0
+                half_h = ch / 2.0
+                eps = 1e-9
                 nl = left + dx
                 nt = top + dy
                 nr = right + dx
                 nb = bottom + dy
-                if nl < -1e-9 or nt < -1e-9 or nr > cw + 1e-9 or nb > ch + 1e-9:
+                inside_now = (
+                    left >= -half_w - eps
+                    and right <= half_w + eps
+                    and top >= -half_h - eps
+                    and bottom <= half_h + eps
+                )
+                inside_after = (
+                    nl >= -half_w - eps
+                    and nr <= half_w + eps
+                    and nt >= -half_h - eps
+                    and nb <= half_h + eps
+                )
+                # Forbid only a move that pushes a currently in-bounds shape
+                # OUT. A shape already outside the declared canvas is not
+                # stranded — the engine grows the canvas to fit content, so
+                # such shapes must stay movable.
+                if inside_now and not inside_after:
                     continue
             actions.append({
                 "shape_id": shape["id"],

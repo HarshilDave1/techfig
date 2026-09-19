@@ -132,28 +132,24 @@ def test_enumerate_actions_coarse_first_scaled_steps():
 
 
 def test_coarse_step_dropped_near_edge_keeps_fine_steps():
-    """A coarse move that leaves the canvas is dropped; the fine step survives."""
+    """A coarse move that leaves the CENTRED canvas is dropped; the fine step survives."""
     spec = {
-        "canvas": {"width": 100, "height": 100},
+        "canvas": {"width": 200, "height": 200},
         "elements": [
-            {"type": "box", "id": "corner", "x": 20, "y": 20, "w": 30, "h": 30},
+            {"type": "box", "id": "near_edge", "x": 60, "y": 0, "w": 40, "h": 40},
         ],
     }
     actions = enumerate_actions(spec, steps=DEFAULT_MOVE_STEPS)
     dirs = {(a["dx"], a["dy"]) for a in actions}
-    # bbox (5,5,35,35) in a 100x100 canvas:
-    #   -20/-40/-80 on x -> left < 0 (excluded); +80 on x -> right 115 > 100 (excluded)
-    #   -x on y likewise; +20/+40 on both axes stay inside.
+    # Canvas is CENTRED: x, y in -100..100 (origin is the canvas centre).
+    # bbox (40, -20, 80, 20). On +x: +80 -> right 160 (out), +40 -> right 120
+    # (out), +20 -> right 100 (exactly on the edge, kept).
     assert (80.0, 0.0) not in dirs
-    assert (-80.0, 0.0) not in dirs
-    assert (-40.0, 0.0) not in dirs
-    assert (-20.0, 0.0) not in dirs
-    assert (0.0, -20.0) not in dirs
+    assert (40.0, 0.0) not in dirs
     assert (20.0, 0.0) in dirs
-    assert (0.0, 20.0) in dirs
-    assert (40.0, 0.0) in dirs
-    assert (0.0, 40.0) in dirs
-    assert len(actions) == 4
+    # Coarse -x stays inside the centred canvas.
+    assert (-80.0, 0.0) in dirs
+    assert len(actions) == 10
 
 
 def test_list_shapes_finds_shapes_and_synthesizes_ids():
@@ -219,12 +215,13 @@ def test_find_overlaps_detects_overlapping_pair_and_clean_layout():
 
 
 def test_enumerate_actions_excludes_out_of_canvas_moves():
-    """Verify candidate moves are generated and out-of-canvas moves are omitted."""
-    # Shape near top-left: x=20, y=20, w=30, h=30
-    # bbox = (5, 5, 35, 35). Moving -20 on x gives left = -15 < 0 (excluded)
-    # Moving -20 on y gives top = -15 < 0 (excluded)
-    # Moving +20 on x gives (25, 5, 55, 35) <= 100 (included)
-    # Moving +20 on y gives (5, 25, 35, 55) <= 100 (included)
+    """Verify out-of-canvas moves are omitted under the CENTRED canvas rect."""
+    # Canvas is CENTRED: a 100x100 canvas spans x, y in -50..50.
+    # Shape x=20, y=20, w=30, h=30 -> bbox (5, 5, 35, 35).
+    #   -20 on x -> left -15, right 15   (inside)  -> included
+    #   -20 on y -> top -15, bottom 15   (inside)  -> included
+    #   +20 on x -> right 55 > 50        (outside) -> excluded
+    #   +20 on y -> bottom 55 > 50       (outside) -> excluded
     spec = {
         "canvas": {"width": 100, "height": 100},
         "elements": [
@@ -233,13 +230,12 @@ def test_enumerate_actions_excludes_out_of_canvas_moves():
     }
 
     actions = enumerate_actions(spec, step=20.0)
-    # Out of 4 axis moves, only +x and +y stay within [0, 100]
     assert len(actions) == 2
     move_directions = [(a["dx"], a["dy"]) for a in actions]
-    assert (20.0, 0.0) in move_directions
-    assert (0.0, 20.0) in move_directions
-    assert (-20.0, 0.0) not in move_directions
-    assert (0.0, -20.0) not in move_directions
+    assert (-20.0, 0.0) in move_directions
+    assert (0.0, -20.0) in move_directions
+    assert (20.0, 0.0) not in move_directions
+    assert (0.0, 20.0) not in move_directions
 
     # Without canvas, all 4 moves should be generated
     spec_no_canvas = {
@@ -338,3 +334,29 @@ def test_state_vector_is_json_serializable():
     decoded = json.loads(json_str)
     assert decoded["canvas"] == sv["canvas"]
     assert decoded["overlaps"] == [["b1", "c1"]]
+
+
+def test_enumerate_actions_handles_centred_canvas_coordinates():
+    """Regression: techfig's origin is the canvas CENTRE, so a real (LLM-authored)
+    figure has negative x/y. The canvas-bounds filter must use the centred rect
+    (-w/2..w/2, -h/2..h/2); a top-left rect rejected every move and silently
+    returned zero candidates, so the cleanup loop could never fix such figures.
+    """
+    spec = {
+        "canvas": {"width": 1200, "height": 800},
+        "elements": [
+            {"type": "box", "id": "boxA", "x": -180, "y": -30, "w": 220, "h": 140},
+            {"type": "box", "id": "boxB", "x": -40, "y": 40, "w": 220, "h": 140},
+        ],
+    }
+    assert find_overlaps(spec) == [("boxA", "boxB")], "sanity: the two boxes overlap"
+
+    actions = enumerate_actions(spec, steps=DEFAULT_MOVE_STEPS)
+    assert actions, "centred (negative-coordinate) figures must still yield candidates"
+
+    reduced = [
+        a
+        for a in actions
+        if len(find_overlaps(apply_action(spec, a))) < len(find_overlaps(spec))
+    ]
+    assert reduced, "at least one candidate move must reduce the overlap count"
